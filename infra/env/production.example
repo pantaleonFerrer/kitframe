@@ -1,0 +1,65 @@
+# Copy to /opt/kitframe/.env on the Hetzner VPS (never commit real values).
+# Co-hosted with gathered-brain: host Nginx on :80/:443; do not use host :8080.
+
+# --- Edge ---
+DOMAIN=kitframe.example.com
+APP_ENV=production
+APP_BASE_URL=https://kitframe.example.com
+API_BASE_URL=https://kitframe.example.com
+CORS_ORIGINS=https://kitframe.example.com
+# Browser same-origin via Nginx. Server-side call to api container:
+NEXT_PUBLIC_API_URL=/api/v1
+API_URL=http://api:8080/api/v1
+
+# Loopback publish (defaults avoid gathered-brain's 127.0.0.1:8080)
+KITFRAME_API_HOST_PORT=18080
+KITFRAME_WEB_HOST_PORT=13000
+
+# --- Images (GHCR) ---
+GHCR_OWNER=YOUR_GITHUB_ORG_OR_USER
+IMAGE_TAG=latest
+# Optional overrides:
+# API_IMAGE=ghcr.io/YOUR_GITHUB_ORG_OR_USER/kitframe-api
+# WEB_IMAGE=ghcr.io/YOUR_GITHUB_ORG_OR_USER/kitframe-web
+
+# --- Postgres (compose service) ---
+POSTGRES_USER=kitframe
+POSTGRES_PASSWORD=CHANGE_ME_STRONG_PASSWORD
+POSTGRES_DB=kitframe
+# DATABASE_URL is set by compose; keep this only if you point elsewhere:
+# DATABASE_URL=postgresql+asyncpg://kitframe:CHANGE_ME@postgres:5432/kitframe
+
+# --- Auth / crypto ---
+JWT_SECRET=CHANGE_ME_MIN_32_CHARS________________
+APP_ENCRYPTION_KEY=CHANGE_ME_BASE64_32_BYTES_____
+
+# --- Object storage (prefer Hetzner Object Storage or AWS EU) ---
+# Leave S3_ENDPOINT empty for AWS; set it for Hetzner/MinIO-compatible.
+S3_ENDPOINT=https://fsn1.your-object-storage.hetzner.cloud
+S3_REGION=fsn1
+S3_BUCKET=kitframe-assets
+S3_ACCESS_KEY_ID=
+S3_SECRET_ACCESS_KEY=
+S3_USE_PATH_STYLE=true
+
+# --- Providers (required in staging/production) ---
+IMAGE_PROVIDER=bfl
+BFL_API_KEY=
+BFL_API_BASE_URL=https://api.eu.bfl.ai/v1
+LLM_PROVIDER=mistral
+MISTRAL_API_KEY=
+MISTRAL_API_BASE_URL=https://api.mistral.ai/v1
+
+# --- Email ---
+SMTP_HOST=
+SMTP_PORT=587
+SMTP_USER=
+SMTP_PASSWORD=
+SMTP_USE_TLS=true
+EMAIL_FROM=Kitframe <noreply@kitframe.example.com>
+
+# --- Ops ---
+SEED_PASSWORDS=false
+METRICS_TOKEN=CHANGE_ME_METRICS_TOKEN
+WORKER_CONCURRENCY=4
+SHOPIFY_API_VERSION=2025-01

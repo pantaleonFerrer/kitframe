@@ -50,7 +50,7 @@ while IFS= read -r -d '' file; do
       ;;
   esac
   check_file "$file"
-done < <(find "$ROOT/apps" "$ROOT/packages" "$ROOT/migrations" "$ROOT/infra/terraform" -type f \( \
+done < <(find "$ROOT/apps" "$ROOT/packages" "$ROOT/migrations" "$ROOT/infra" -type f \( \
   -name '*.go' -o -name '*.py' -o -name '*.ts' -o -name '*.tsx' -o -name '*.js' -o -name '*.jsx' \
   -o -name '*.css' -o -name '*.sql' -o -name '*.tf' \
 \) -print0 2>/dev/null)

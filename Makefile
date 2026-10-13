@@ -3,7 +3,7 @@ COMPOSE=docker compose -f infra/docker/docker-compose.yml
 ENV_FILE=.env
 LOAD_ENV=set -a; [ -f $(ENV_FILE) ] && . ./$(ENV_FILE); set +a
 
-.PHONY: up down migrate seed seed-media api worker web dev demo test wait-db
+.PHONY: up down migrate seed seed-media api worker web dev demo test wait-db deploy-prod
 
 up:
 	@docker info >/dev/null 2>&1 || (echo "Docker Desktop no está arrancado. Ábrelo y reintenta."; exit 1)
@@ -63,3 +63,8 @@ web:
 test:
 	cd apps/api && . .venv/bin/activate && pytest -q --cov=kitframe/workflow --cov=kitframe/auth --cov=kitframe/qc --cov=kitframe/studio --cov=kitframe/shopify || pytest -q
 	cd apps/web && pnpm install && pnpm lint && pnpm exec tsc --noEmit
+
+# Production deploy on the current host (expects .env + IMAGE_TAG). See infra/DEPLOY.md.
+deploy-prod:
+	@test -n "$$IMAGE_TAG" || (echo "Set IMAGE_TAG=<git-sha>"; exit 1)
+	bash scripts/deploy.sh

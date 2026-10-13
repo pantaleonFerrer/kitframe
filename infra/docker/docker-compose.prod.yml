@@ -1,0 +1,97 @@
+# Production stack for Hetzner — coexists with gathered-brain on the same VPS.
+# Host Nginx owns :80/:443 (see infra/nginx/kitframe.conf).
+# Kitframe binds only loopback ports (not 8080 — that is gathered core-api).
+#
+# Usage (on the server, from /opt/kitframe):
+#   export IMAGE_TAG=<git-sha>
+#   ./scripts/deploy.sh
+
+name: kitframe
+
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-kitframe}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-kitframe}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-kitframe} -d ${POSTGRES_DB:-kitframe}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - kitframe
+
+  api:
+    image: ${API_IMAGE:-ghcr.io/${GHCR_OWNER:-kitframe}/kitframe-api}:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    command: ["kitframe", "api", "--host", "0.0.0.0", "--port", "8080"]
+    ports:
+      # Avoid host :8080 (gathered-brain core-api)
+      - "127.0.0.1:${KITFRAME_API_HOST_PORT:-18080}:8080"
+    env_file:
+      - ../../.env
+    environment:
+      APP_ENV: ${APP_ENV:-production}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-kitframe}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-kitframe}
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://${DOMAIN}}
+      APP_BASE_URL: ${APP_BASE_URL:-https://${DOMAIN}}
+      API_BASE_URL: ${API_BASE_URL:-https://${DOMAIN}}
+      SEED_PASSWORDS: ${SEED_PASSWORDS:-false}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/api/v1/healthz')\""]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - kitframe
+
+  worker:
+    image: ${API_IMAGE:-ghcr.io/${GHCR_OWNER:-kitframe}/kitframe-api}:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    command: ["kitframe", "worker"]
+    env_file:
+      - ../../.env
+    environment:
+      APP_ENV: ${APP_ENV:-production}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-kitframe}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-kitframe}
+      APP_BASE_URL: ${APP_BASE_URL:-https://${DOMAIN}}
+      API_BASE_URL: ${API_BASE_URL:-https://${DOMAIN}}
+      SEED_PASSWORDS: ${SEED_PASSWORDS:-false}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    networks:
+      - kitframe
+
+  web:
+    image: ${WEB_IMAGE:-ghcr.io/${GHCR_OWNER:-kitframe}/kitframe-web}:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${KITFRAME_WEB_HOST_PORT:-13000}:3000"
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/api/v1}
+      API_URL: ${API_URL:-http://api:8080/api/v1}
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - kitframe
+
+volumes:
+  postgres_data:
+
+networks:
+  kitframe:
+    name: kitframe

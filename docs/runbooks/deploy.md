@@ -1,10 +1,14 @@
 # Deploy
 
-1. CI builds images tagged with git SHA
-2. `alembic upgrade head` on target env
-3. Roll out api ×2, worker ×1, web ×1
-4. Smoke: `/api/v1/readyz`, login, load `/tareas`
+Full guide: [infra/DEPLOY.md](../../infra/DEPLOY.md).
+
+Co-hosted with gathered-brain on the same Hetzner VPS. Host Nginx terminates TLS; Kitframe Compose binds only `127.0.0.1:18080` (api) and `127.0.0.1:13000` (web).
+
+1. CI **images** → GHCR (`kitframe-api` / `kitframe-web` @ git SHA).
+2. Enable `infra/nginx/kitframe.conf` on the host.
+3. `IMAGE_TAG=<sha> ./scripts/deploy.sh` in `/opt/kitframe`.
+4. Smoke: `GET /api/v1/healthz`, login, `/tareas`.
 
 # Rollback
 
-Redeploy previous image SHA without running destructive migrations (expand/contract only).
+Redeploy previous image SHA without destructive migrations.

@@ -49,6 +49,19 @@ Para bajar también Docker: `make down`.
 
 Set `BFL_API_KEY`, `BFL_API_BASE_URL`, `MISTRAL_API_KEY`, `MISTRAL_API_BASE_URL`. Staging/production refuse `fake` and non-EU BFL hosts at startup. Spike: `scripts/spike_flux2.py`.
 
+## Deploy (Hetzner)
+
+Same VPS as gathered-brain: Docker Compose + **host Nginx** (no Caddy). Guide: [infra/DEPLOY.md](infra/DEPLOY.md).
+
+```bash
+# on the server → /opt/kitframe
+cp infra/env/production.example .env   # fill secrets + DOMAIN
+# enable infra/nginx/kitframe.conf in host Nginx, then:
+IMAGE_TAG=<git-sha> ./scripts/deploy.sh
+```
+
+Loopback ports: API `127.0.0.1:18080`, web `127.0.0.1:13000` (gathered keeps `:8080`).
+
 ## Legacy
 
 Previous Go API + ai-service live under `legacy/` for reference only and are not deployed.

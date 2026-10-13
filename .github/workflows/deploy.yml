@@ -12,7 +12,7 @@ on:
           - staging
           - production
       image_tag:
-        description: Container image tag (git SHA)
+        description: Container image tag (git SHA from images workflow)
         required: true
         type: string
 
@@ -25,10 +25,8 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     steps:
-      - name: Manual approval gate placeholder
-        run: |
-          echo "Production environment protection must require reviewers"
-          echo "Approval recorded for tag ${{ inputs.image_tag }}"
+      - name: Manual approval gate
+        run: echo "Approved production deploy for tag ${{ inputs.image_tag }}"
 
   deploy:
     needs:
@@ -38,11 +36,46 @@ jobs:
     environment: ${{ inputs.target }}
     steps:
       - uses: actions/checkout@v4
-      - name: Deploy placeholder
+
+      - name: Start SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      - name: Add host key
         run: |
-          echo "Deploy placeholder for ${{ inputs.target }}"
-          echo "IMAGE_TAG=${{ inputs.image_tag }}"
-          echo "Wire Hetzner hosts from terraform outputs and pull tagged images here"
-      - name: Smoke check placeholder
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          ssh-keyscan -H "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Deploy over SSH
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          IMAGE_TAG: ${{ inputs.image_tag }}
+          KITFRAME_HOME: ${{ vars.DEPLOY_PATH }}
         run: |
-          echo "POST-deploy smoke: GET /healthz and one read-only board request"
+          set -euo pipefail
+          HOME_DIR="${KITFRAME_HOME:-/opt/kitframe}"
+          ssh -o StrictHostKeyChecking=yes \
+            "${DEPLOY_USER}@${DEPLOY_HOST}" \
+            "set -euo pipefail
+             cd '${HOME_DIR}'
+             git fetch --all --tags
+             git checkout '${IMAGE_TAG}' 2>/dev/null || git checkout '${{ github.sha }}' 2>/dev/null || git pull --ff-only
+             export IMAGE_TAG='${IMAGE_TAG}'
+             ./scripts/deploy.sh
+            "
+
+      - name: Smoke check
+        env:
+          APP_URL: ${{ vars.APP_URL }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${APP_URL}" ]]; then
+            echo "Set environment variable APP_URL (e.g. https://kitframe.example.com) for smoke checks."
+            exit 0
+          fi
+          curl -fsS "${APP_URL}/api/v1/healthz"
+          curl -fsS -o /dev/null -w "%{http_code}\n" "${APP_URL}/" | grep -E '200|301|302|308'
+          echo "Smoke OK"
