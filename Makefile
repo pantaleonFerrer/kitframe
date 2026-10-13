@@ -64,7 +64,6 @@ test:
 	cd apps/api && . .venv/bin/activate && pytest -q --cov=kitframe/workflow --cov=kitframe/auth --cov=kitframe/qc --cov=kitframe/studio --cov=kitframe/shopify || pytest -q
 	cd apps/web && pnpm install && pnpm lint && pnpm exec tsc --noEmit
 
-# Production deploy on the current host (expects .env + IMAGE_TAG). See infra/DEPLOY.md.
+# Production deploy on the current host (expects .env). See infra/DEPLOY.md.
 deploy-prod:
-	@test -n "$$IMAGE_TAG" || (echo "Set IMAGE_TAG=<git-sha>"; exit 1)
 	bash scripts/deploy.sh

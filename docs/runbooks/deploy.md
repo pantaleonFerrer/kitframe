@@ -2,13 +2,13 @@
 
 Full guide: [infra/DEPLOY.md](../../infra/DEPLOY.md).
 
-Co-hosted with gathered-brain on the same Hetzner VPS. Host Nginx terminates TLS; Kitframe Compose binds only `127.0.0.1:18080` (api) and `127.0.0.1:13000` (web).
+Same as gathered-brain: build on the Hetzner host with Docker Compose (no GHCR).
 
-1. CI **images** → GHCR (`kitframe-api` / `kitframe-web` @ git SHA).
-2. Enable `infra/nginx/kitframe.conf` on the host.
-3. `IMAGE_TAG=<sha> ./scripts/deploy.sh` in `/opt/kitframe`.
+1. Green **ci** on `main` triggers **Deploy Hetzner** (or run it manually).
+2. SSH → `git reset --hard <sha>` → `./scripts/deploy.sh` (build, migrate, up).
+3. Nginx vhost: `infra/nginx/kitframe.conf` → `127.0.0.1:18080` / `:13000`.
 4. Smoke: `GET /api/v1/healthz`, login, `/tareas`.
 
 # Rollback
 
-Redeploy previous image SHA without destructive migrations.
+`git reset --hard` to previous SHA (see `.deploy-previous-sha`) and run `./scripts/deploy.sh` again.

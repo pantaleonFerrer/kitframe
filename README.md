@@ -51,16 +51,17 @@ Set `BFL_API_KEY`, `BFL_API_BASE_URL`, `MISTRAL_API_KEY`, `MISTRAL_API_BASE_URL`
 
 ## Deploy (Hetzner)
 
-Same VPS as gathered-brain: Docker Compose + **host Nginx** (no Caddy). Guide: [infra/DEPLOY.md](infra/DEPLOY.md).
+Same VPS and pattern as gathered-brain: `git pull` → `docker compose build` → up. Guide: [infra/DEPLOY.md](infra/DEPLOY.md).
 
 ```bash
 # on the server → /opt/kitframe
 cp infra/env/production.example .env   # fill secrets + DOMAIN
-# enable infra/nginx/kitframe.conf in host Nginx, then:
-IMAGE_TAG=<git-sha> ./scripts/deploy.sh
+# enable infra/nginx/kitframe.conf, then:
+./scripts/deploy.sh
 ```
 
-Loopback ports: API `127.0.0.1:18080`, web `127.0.0.1:13000` (gathered keeps `:8080`).
+CD: after green CI on `main`, workflow **Deploy Hetzner** SSHs and runs that script.  
+Ports: API `127.0.0.1:18080`, web `127.0.0.1:13000` (gathered keeps `:8080`).
 
 ## Legacy
 

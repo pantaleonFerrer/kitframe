@@ -1,81 +1,69 @@
-name: deploy
+name: Deploy Hetzner
 
 on:
   workflow_dispatch:
-    inputs:
-      target:
-        description: Deployment target
-        required: true
-        default: production
-        type: choice
-        options:
-          - staging
-          - production
-      image_tag:
-        description: Container image tag (git SHA from images workflow)
-        required: true
-        type: string
+  workflow_run:
+    workflows: [ci]
+    types: [completed]
+    branches: [main]
 
-permissions:
-  contents: read
+concurrency:
+  group: hetzner-deploy-kitframe
+  cancel-in-progress: false
 
 jobs:
-  production-approval:
-    if: inputs.target == 'production'
+  deploy:
     runs-on: ubuntu-latest
     environment: production
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push')
     steps:
-      - name: Manual approval gate
-        run: echo "Approved production deploy for tag ${{ inputs.image_tag }}"
-
-  deploy:
-    needs:
-      - production-approval
-    if: always() && (needs.production-approval.result == 'success' || inputs.target == 'staging')
-    runs-on: ubuntu-latest
-    environment: ${{ inputs.target }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Start SSH agent
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
-
-      - name: Add host key
-        run: |
-          mkdir -p ~/.ssh
-          chmod 700 ~/.ssh
-          ssh-keyscan -H "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts
-
-      - name: Deploy over SSH
-        env:
-          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-          IMAGE_TAG: ${{ inputs.image_tag }}
-          KITFRAME_HOME: ${{ vars.DEPLOY_PATH }}
+      - name: Check GitHub Actions secrets
         run: |
           set -euo pipefail
-          HOME_DIR="${KITFRAME_HOME:-/opt/kitframe}"
-          ssh -o StrictHostKeyChecking=yes \
-            "${DEPLOY_USER}@${DEPLOY_HOST}" \
-            "set -euo pipefail
-             cd '${HOME_DIR}'
-             git fetch --all --tags
-             git checkout '${IMAGE_TAG}' 2>/dev/null || git checkout '${{ github.sha }}' 2>/dev/null || git pull --ff-only
-             export IMAGE_TAG='${IMAGE_TAG}'
-             ./scripts/deploy.sh
-            "
-
-      - name: Smoke check
-        env:
-          APP_URL: ${{ vars.APP_URL }}
-        run: |
-          set -euo pipefail
-          if [[ -z "${APP_URL}" ]]; then
-            echo "Set environment variable APP_URL (e.g. https://kitframe.example.com) for smoke checks."
-            exit 0
+          missing=()
+          [ -z "${{ secrets.HETZNER_HOST }}" ] && missing+=("HETZNER_HOST")
+          [ -z "${{ secrets.HETZNER_USER }}" ] && missing+=("HETZNER_USER")
+          [ -z "${{ secrets.HETZNER_SSH_KEY }}" ] && missing+=("HETZNER_SSH_KEY")
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "::error::Faltan secrets de deploy: ${missing[*]}"
+            echo "Settings → Environments → production → Environment secrets"
+            exit 1
           fi
-          curl -fsS "${APP_URL}/api/v1/healthz"
-          curl -fsS -o /dev/null -w "%{http_code}\n" "${APP_URL}/" | grep -E '200|301|302|308'
-          echo "Smoke OK"
+
+      - name: Require CI green for commit
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          REF="${{ github.sha }}"
+          ok="$(gh run list --repo "${{ github.repository }}" --workflow ci --commit "$REF" --status completed --json conclusion --jq '[.[] | select(.conclusion=="success")] | length')"
+          if [[ "${ok:-0}" -lt 1 ]]; then
+            echo "::error::No hay una ejecución exitosa de CI para $REF."
+            exit 1
+          fi
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@7eaf76671a0d7eec5d98ee897acda4f968735a17 # v1.2.0
+        with:
+          host: ${{ secrets.HETZNER_HOST }}
+          username: ${{ secrets.HETZNER_USER }}
+          key: ${{ secrets.HETZNER_SSH_KEY }}
+          script_stop: true
+          script: |
+            set -euo pipefail
+            DEPLOY_PATH="${{ secrets.HETZNER_DEPLOY_PATH }}"
+            DEPLOY_PATH="${DEPLOY_PATH:-/opt/kitframe}"
+            REF="${{ github.event.workflow_run.head_sha || github.sha }}"
+            cd "$DEPLOY_PATH"
+            git fetch origin
+            if git rev-parse HEAD >/dev/null 2>&1; then
+              git rev-parse HEAD > .deploy-previous-sha
+            fi
+            echo "$REF" > .deploy-target-sha
+            git reset --hard "$REF"
+            chmod +x scripts/deploy.sh
+            ./scripts/deploy.sh

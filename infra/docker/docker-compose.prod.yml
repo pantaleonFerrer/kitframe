@@ -1,9 +1,8 @@
 # Production stack for Hetzner — coexists with gathered-brain on the same VPS.
 # Host Nginx owns :80/:443 (see infra/nginx/kitframe.conf).
-# Kitframe binds only loopback ports (not 8080 — that is gathered core-api).
+# Images are built on the server (docker compose build), same as gathered-brain.
 #
-# Usage (on the server, from /opt/kitframe):
-#   export IMAGE_TAG=<git-sha>
+# Usage (from /opt/kitframe):
 #   ./scripts/deploy.sh
 
 name: kitframe
@@ -27,7 +26,9 @@ services:
       - kitframe
 
   api:
-    image: ${API_IMAGE:-ghcr.io/${GHCR_OWNER:-kitframe}/kitframe-api}:${IMAGE_TAG:-latest}
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.api
     restart: unless-stopped
     command: ["kitframe", "api", "--host", "0.0.0.0", "--port", "8080"]
     ports:
@@ -55,7 +56,9 @@ services:
       - kitframe
 
   worker:
-    image: ${API_IMAGE:-ghcr.io/${GHCR_OWNER:-kitframe}/kitframe-api}:${IMAGE_TAG:-latest}
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.api
     restart: unless-stopped
     command: ["kitframe", "worker"]
     env_file:
@@ -75,7 +78,11 @@ services:
       - kitframe
 
   web:
-    image: ${WEB_IMAGE:-ghcr.io/${GHCR_OWNER:-kitframe}/kitframe-web}:${IMAGE_TAG:-latest}
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.web
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/api/v1}
     restart: unless-stopped
     ports:
       - "127.0.0.1:${KITFRAME_WEB_HOST_PORT:-13000}:3000"

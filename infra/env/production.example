@@ -15,14 +15,7 @@ API_URL=http://api:8080/api/v1
 KITFRAME_API_HOST_PORT=18080
 KITFRAME_WEB_HOST_PORT=13000
 
-# --- Images (GHCR) ---
-GHCR_OWNER=YOUR_GITHUB_ORG_OR_USER
-IMAGE_TAG=latest
-# Optional overrides:
-# API_IMAGE=ghcr.io/YOUR_GITHUB_ORG_OR_USER/kitframe-api
-# WEB_IMAGE=ghcr.io/YOUR_GITHUB_ORG_OR_USER/kitframe-web
-
-# --- Postgres (compose service) ---
+# --- Postgres (compose service; images built on the server) ---
 POSTGRES_USER=kitframe
 POSTGRES_PASSWORD=CHANGE_ME_STRONG_PASSWORD
 POSTGRES_DB=kitframe
