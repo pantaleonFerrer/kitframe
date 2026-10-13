@@ -1,0 +1,158 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Kitframe API",
+    "version": "1.0.0"
+  },
+  "servers": [{ "url": "/v1" }],
+  "paths": {
+    "/auth/login": { "post": { "summary": "Login", "tags": ["auth"] } },
+    "/auth/refresh": { "post": { "summary": "Refresh", "tags": ["auth"] } },
+    "/auth/logout": { "post": { "summary": "Logout", "tags": ["auth"] } },
+    "/me": { "get": { "summary": "Current user", "tags": ["auth"] } },
+    "/brands/{id}": {
+      "get": { "summary": "Get brand", "tags": ["brands"] },
+      "patch": { "summary": "Update brand", "tags": ["brands"] }
+    },
+    "/brands/{id}/channel-specs": {
+      "get": { "summary": "List channel specs", "tags": ["brands"] },
+      "post": { "summary": "Create channel spec", "tags": ["brands"] }
+    },
+    "/brands/{id}/collections": { "get": { "summary": "List brand collections", "tags": ["collections"] } },
+    "/channel-specs/{id}": { "patch": { "summary": "Update channel spec", "tags": ["brands"] } },
+    "/collections/{id}": { "get": { "summary": "Get collection", "tags": ["collections"] } },
+    "/collections/{id}/products": { "get": { "summary": "Board products", "tags": ["collections"] } },
+    "/collections/{id}/bottlenecks": { "get": { "summary": "Bottlenecks", "tags": ["collections"] } },
+    "/collections/{id}/events": { "get": { "summary": "SSE events", "tags": ["collections"] } },
+    "/brands/{id}/alert-rules": {
+      "get": { "summary": "List alert rules", "tags": ["alerts"] },
+      "post": { "summary": "Create alert rule", "tags": ["alerts"] }
+    },
+    "/source-documents": { "post": { "summary": "Upload source document", "tags": ["documents"] } },
+    "/source-documents/{id}": { "get": { "summary": "Get source document", "tags": ["documents"] } },
+    "/products/{id}": {
+      "get": { "summary": "Get product", "tags": ["products"] },
+      "patch": { "summary": "Patch product", "tags": ["products"] }
+    },
+    "/products/{id}/generate-seo": { "post": { "summary": "Generate SEO", "tags": ["products"] } },
+    "/products/{id}/advance-step": { "post": { "summary": "Advance workflow step", "tags": ["products"] } },
+    "/products/{id}/publish-shopify": { "post": { "summary": "Publish to Shopify", "tags": ["products"] } },
+    "/products/{id}/export": { "post": { "summary": "Export product", "tags": ["products"] } },
+    "/assets": { "post": { "summary": "Create asset", "tags": ["assets"] } },
+    "/assets/{id}": { "get": { "summary": "Get asset", "tags": ["assets"] } },
+    "/assets/{id}/run-qc": { "post": { "summary": "Run QC", "tags": ["assets"] } },
+    "/assets/{id}/approve": { "post": { "summary": "Approve asset QC", "tags": ["assets"] } },
+    "/assets/search": { "get": { "summary": "Search assets", "tags": ["assets"] } },
+    "/assets/{id}/reindex": { "post": { "summary": "Reindex asset", "tags": ["assets"] } },
+    "/golden-set": {
+      "get": { "summary": "List golden set", "tags": ["golden-set"] },
+      "post": { "summary": "Create golden set entry", "tags": ["golden-set"] }
+    },
+    "/rights-records": {
+      "get": { "summary": "List rights", "tags": ["rights"] },
+      "post": { "summary": "Create rights", "tags": ["rights"] }
+    },
+    "/rights-records/{id}": { "patch": { "summary": "Update rights", "tags": ["rights"] } },
+    "/uploads": {
+      "post": {
+        "summary": "Upload files",
+        "tags": ["uploads"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "files": { "type": "array", "items": { "type": "string", "format": "binary" } },
+                  "file": { "type": "string", "format": "binary" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Uploaded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "url": { "type": "string" },
+                          "filename": { "type": "string" },
+                          "content_type": { "type": "string" },
+                          "size": { "type": "integer" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/uploads/{key}": { "get": { "summary": "Get local uploaded file", "tags": ["uploads"] } },
+    "/avatars": { "post": { "summary": "Create avatar", "tags": ["generation"] }, "get": { "summary": "List avatars", "tags": ["generation"] } },
+    "/avatars/{id}": { "get": { "summary": "Get avatar", "tags": ["generation"] } },
+    "/pose-references": {
+      "get": { "summary": "List pose references", "tags": ["generation"] },
+      "post": { "summary": "Create pose reference", "tags": ["generation"] }
+    },
+    "/generation-requests": { "post": { "summary": "Create generation request", "tags": ["generation"] } },
+    "/generation-requests/{id}": { "get": { "summary": "Get generation request", "tags": ["generation"] } },
+    "/provider-benchmarks/run": { "post": { "summary": "Run provider benchmark", "tags": ["benchmarks"] } },
+    "/provider-benchmarks": { "get": { "summary": "List benchmarks", "tags": ["benchmarks"] } },
+    "/notification-preferences": {
+      "get": { "summary": "Get notification preferences", "tags": ["notifications"] },
+      "patch": { "summary": "Update notification preferences", "tags": ["notifications"] }
+    },
+    "/notifications": { "get": { "summary": "List notifications", "tags": ["notifications"] } },
+    "/notifications/mark-all-read": { "post": { "summary": "Mark all notifications read", "tags": ["notifications"] } },
+    "/notifications/{id}/read": { "patch": { "summary": "Mark notification read", "tags": ["notifications"] } },
+    "/audit-log": { "get": { "summary": "List audit log", "tags": ["audit"] } },
+    "/jobs/{id}": { "get": { "summary": "Get job", "tags": ["jobs"] } },
+    "/brands/{id}/collections": { "get": { "summary": "List brand collections", "tags": ["collections"] } },
+    "/jobs": { "get": { "summary": "List jobs", "tags": ["jobs"] } },
+    "/brands/{id}/users": { "get": { "summary": "List brand users", "tags": ["users"] } },
+    "/brands/{id}/users/invite": { "post": { "summary": "Invite user", "tags": ["users"] } },
+    "/brand-memberships/{id}": {
+      "patch": { "summary": "Update membership", "tags": ["users"] },
+      "delete": { "summary": "Delete membership", "tags": ["users"] }
+    },
+    "/webhooks/shopify": { "post": { "summary": "Shopify webhook", "tags": ["webhooks"] } },
+    "/briefs": {
+      "get": { "summary": "List briefs", "tags": ["briefs"] },
+      "post": { "summary": "Create brief", "tags": ["briefs"] }
+    },
+    "/briefs/{id}": {
+      "get": { "summary": "Get brief", "tags": ["briefs"] },
+      "patch": { "summary": "Update brief", "tags": ["briefs"] }
+    },
+    "/briefs/{id}/send-for-validation": { "post": { "summary": "Send brief for validation", "tags": ["briefs"] } }
+  },
+  "components": {
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": { "type": "string" },
+              "message": { "type": "string" },
+              "details": { "type": "object" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

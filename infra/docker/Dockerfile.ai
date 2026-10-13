@@ -1,0 +1,18 @@
+FROM python:3.13-slim-bookworm AS build
+WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends build-essential && rm -rf /var/lib/apt/lists/*
+COPY apps/ai-service/pyproject.toml ./
+COPY apps/ai-service/app ./app
+COPY apps/ai-service/providers ./providers
+RUN pip install --no-cache-dir .
+
+FROM python:3.13-slim-bookworm
+WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends libgl1 libglib2.0-0 && rm -rf /var/lib/apt/lists/*
+COPY --from=build /usr/local/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages
+COPY --from=build /usr/local/bin /usr/local/bin
+COPY apps/ai-service/app ./app
+COPY apps/ai-service/providers ./providers
+ENV PYTHONUNBUFFERED=1
+EXPOSE 8000
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

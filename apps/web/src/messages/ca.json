@@ -1,0 +1,119 @@
+{
+  "nav": {
+    "tareas": "Mis tareas",
+    "proyectos": "Proyectos",
+    "estudio": "Estudio",
+    "biblioteca": "Biblioteca",
+    "derechos": "Derechos",
+    "ajustes": "Ajustes"
+  },
+  "auth": {
+    "loginTitle": "Entrar en Kitframe",
+    "email": "Email",
+    "password": "Contraseña",
+    "submit": "Entrar",
+    "forgot": "¿Has olvidado la contraseña?",
+    "invalid": "Email o contraseña incorrectos",
+    "recoverTitle": "Recuperar contraseña",
+    "recoverHint": "Te enviaremos un enlace si el email existe.",
+    "sendLink": "Enviar enlace",
+    "resetTitle": "Nueva contraseña",
+    "savePassword": "Guardar contraseña",
+    "inviteTitle": "Aceptar invitación",
+    "name": "Nombre",
+    "accept": "Crear cuenta y entrar",
+    "inviteExpired": "Esta invitación ha caducado. Pide a tu administrador una nueva invitación."
+  },
+  "tareas": {
+    "greeting": "Hola, {name}",
+    "summary": "Tienes {review} revisiones pendientes y {changes} productos con cambios solicitados",
+    "empty": "No tienes nada pendiente",
+    "goProjects": "Ir a Proyectos",
+    "paraRevisar": "Para revisar",
+    "cambios": "Cambios solicitados",
+    "enCurso": "En curso",
+    "pendientes": "Pendientes de empezar",
+    "revisar": "Revisar",
+    "verCambios": "Ver cambios",
+    "continuar": "Continuar",
+    "empezar": "Empezar"
+  },
+  "projects": {
+    "title": "Proyectos",
+    "new": "Nuevo proyecto",
+    "archived": "Archivados",
+    "active": "Activos",
+    "empty": "Aún no hay proyectos",
+    "tablero": "Tablero",
+    "lista": "Lista",
+    "fichas": "Fichas",
+    "equipo": "Equipo",
+    "requisitos": "Requisitos",
+    "calendario": "Calendario"
+  },
+  "product": {
+    "datos": "Datos",
+    "textos": "Textos",
+    "imagenes": "Imágenes",
+    "revision": "Revisión",
+    "publicacion": "Publicación",
+    "whatsMissing": "Qué falta",
+    "start": "Empezar",
+    "submit": "Enviar a revisión",
+    "resubmit": "Reenviar a revisión",
+    "review": "Revisar",
+    "approve": "Aprobar",
+    "approvePublish": "Aprobar y publicar",
+    "requestChanges": "Solicitar cambios",
+    "sendBack": "Devolver a fase…",
+    "locked": "En revisión. No se puede editar hasta que responda.",
+    "readOnly": "Solo lectura"
+  },
+  "phases": {
+    "data": "Datos de producto",
+    "visuals": "Producción visual",
+    "retouch": "Retoque y QC",
+    "approval": "Aprobación final",
+    "published": "Publicado"
+  },
+  "status": {
+    "todo": "Pendiente",
+    "in_progress": "En curso",
+    "in_review": "En revisión",
+    "changes_requested": "Cambios solicitados",
+    "done": "Completada"
+  },
+  "studio": {
+    "title": "Estudio",
+    "pickProduct": "Elige un producto para empezar",
+    "generate": "Generar",
+    "finalPrompt": "Prompt final",
+    "addToProduct": "Añadir al producto",
+    "select": "Seleccionar",
+    "discard": "Descartar",
+    "regen": "Regenerar ajustando"
+  },
+  "library": {
+    "modelos": "Modelos",
+    "poses": "Poses",
+    "estilos": "Estilos",
+    "golden": "Golden set"
+  },
+  "common": {
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "loading": "Cargando…",
+    "retry": "Reintentar",
+    "search": "Buscar",
+    "logout": "Cerrar sesión",
+    "confirm": "Confirmar"
+  },
+  "qc": {
+    "pass": "Correcto",
+    "needs_review": "Revisar",
+    "fail": "No conforme",
+    "pending": "Pendiente",
+    "overridden": "Aprobado manualmente",
+    "label": "Control de calidad"
+  }
+}

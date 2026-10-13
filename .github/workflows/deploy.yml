@@ -1,0 +1,48 @@
+name: deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Deployment target
+        required: true
+        default: production
+        type: choice
+        options:
+          - staging
+          - production
+      image_tag:
+        description: Container image tag (git SHA)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  production-approval:
+    if: inputs.target == 'production'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Manual approval gate placeholder
+        run: |
+          echo "Production environment protection must require reviewers"
+          echo "Approval recorded for tag ${{ inputs.image_tag }}"
+
+  deploy:
+    needs:
+      - production-approval
+    if: always() && (needs.production-approval.result == 'success' || inputs.target == 'staging')
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.target }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy placeholder
+        run: |
+          echo "Deploy placeholder for ${{ inputs.target }}"
+          echo "IMAGE_TAG=${{ inputs.image_tag }}"
+          echo "Wire Hetzner hosts from terraform outputs and pull tagged images here"
+      - name: Smoke check placeholder
+        run: |
+          echo "POST-deploy smoke: GET /healthz and one read-only board request"

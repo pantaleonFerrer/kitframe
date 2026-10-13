@@ -1,0 +1,9 @@
+{
+  "name": "@kitframe/api-types",
+  "version": "4.0.0",
+  "private": true,
+  "types": "index.d.ts",
+  "scripts": {
+    "generate": "echo 'Generate from /api/v1/openapi.json when API is running'"
+  }
+}
