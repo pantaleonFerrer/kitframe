@@ -18,7 +18,8 @@ x-app-env: &app-env
 services:
   api:
     build:
-      context: ../..
+      # Paths relative to --project-directory (repo root), see scripts/deploy.sh
+      context: .
       dockerfile: infra/docker/Dockerfile.api
     restart: unless-stopped
     command: ["kitframe", "api", "--host", "0.0.0.0", "--port", "8080"]
@@ -26,7 +27,7 @@ services:
       # Avoid host :8080 (gathered-brain core-api)
       - "127.0.0.1:${KITFRAME_API_HOST_PORT:-18080}:8080"
     env_file:
-      - ../../.env
+      - .env
     environment:
       <<: *app-env
     extra_hosts:
@@ -43,12 +44,12 @@ services:
 
   worker:
     build:
-      context: ../..
+      context: .
       dockerfile: infra/docker/Dockerfile.api
     restart: unless-stopped
     command: ["kitframe", "worker"]
     env_file:
-      - ../../.env
+      - .env
     environment:
       <<: *app-env
     extra_hosts:
@@ -61,7 +62,7 @@ services:
 
   web:
     build:
-      context: ../..
+      context: .
       dockerfile: infra/docker/Dockerfile.web
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/api/v1}
