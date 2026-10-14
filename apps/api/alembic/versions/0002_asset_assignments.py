@@ -3,6 +3,9 @@
 Revision ID: 0002
 Revises: 0001
 Create Date: 2026-10-01
+
+Note: 0001 uses Base.metadata.create_all(), so on a fresh install the current
+models (including asset_assignments) already exist. This revision is idempotent.
 """
 from typing import Sequence, Union
 
@@ -17,6 +20,11 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    if "asset_assignments" in inspector.get_table_names():
+        return
+
     op.create_table(
         "asset_assignments",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
@@ -41,4 +49,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_table("asset_assignments")
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    if "asset_assignments" in inspector.get_table_names():
+        op.drop_table("asset_assignments")
