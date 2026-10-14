@@ -103,8 +103,10 @@ async def _data_criteria(session: AsyncSession, product: Product, brand: Brand) 
         }
     )
 
+    from kitframe.content.locales import CONTENT_LOCALES
+
     content = product.content or {}
-    for locale in ("es", "ca", "en"):
+    for locale in CONTENT_LOCALES:
         loc = content.get(locale) or {}
         name_ok = bool(loc.get("name") and loc.get("description"))
         seo_title = loc.get("seo_title") or ""

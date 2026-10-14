@@ -126,6 +126,34 @@ const SHOT_OPTIONS = [
   "lifestyle",
 ] as const;
 
+const CONTENT_LOCALES = ["es", "ca", "en", "fr", "de", "it", "pt", "zh"] as const;
+type ContentLocale = (typeof CONTENT_LOCALES)[number];
+type LocaleCopy = {
+  name: string;
+  description: string;
+  seo_title: string;
+  seo_meta: string;
+  seo_keywords: string;
+};
+
+function contentToDraft(content: Record<string, Record<string, unknown>> | undefined) {
+  const draft = {} as Record<ContentLocale, LocaleCopy>;
+  for (const loc of CONTENT_LOCALES) {
+    const c = content?.[loc] || {};
+    const keywords = c.seo_keywords;
+    draft[loc] = {
+      name: String(c.name || ""),
+      description: String(c.description || ""),
+      seo_title: String(c.seo_title || ""),
+      seo_meta: String(c.seo_meta || ""),
+      seo_keywords: Array.isArray(keywords)
+        ? keywords.map(String).join(", ")
+        : String(keywords || ""),
+    };
+  }
+  return draft;
+}
+
 export default function ProductoPage() {
   const params = useParams<{ id: string }>();
   const { te, t } = useI18n();
@@ -156,6 +184,11 @@ export default function ProductoPage() {
   const [revisionUploadAssetId, setRevisionUploadAssetId] = useState<string | null>(null);
   const [decideComment, setDecideComment] = useState("");
   const [workspaceComments, setWorkspaceComments] = useState<ReviewDetail["comments"]>([]);
+  const [copyDraft, setCopyDraft] = useState<Record<ContentLocale, LocaleCopy> | null>(null);
+  const [copyBusy, setCopyBusy] = useState<"save" | "generate" | "translate" | null>(null);
+  const [copyMsg, setCopyMsg] = useState<string | null>(null);
+  const [sourceLocale, setSourceLocale] = useState<ContentLocale>("es");
+  const [overwriteManual, setOverwriteManual] = useState(false);
 
   const loadReviewDetail = async (reviewId: string) => {
     const d = await api<ReviewDetail>(`/products/${params.id}/reviews/${reviewId}`);
@@ -180,6 +213,7 @@ export default function ProductoPage() {
   const load = async () => {
     const p = await api<Product>(`/products/${params.id}`);
     setProduct(p);
+    setCopyDraft(contentToDraft(p.content));
     const [c, a, e, asg, revs] = await Promise.all([
       api<{ criteria: { code: string; ok: boolean }[]; ok: boolean }>(`/products/${params.id}/checklist`),
       api<{ data: Asset[] }>(`/products/${params.id}/assets`).catch(() => ({ data: [] as Asset[] })),
@@ -424,31 +458,296 @@ export default function ProductoPage() {
         </div>
       )}
 
-      {tab === "textos" && (
-        <div className="grid md:grid-cols-3 gap-4">
-          {(["es", "ca", "en"] as const).map((loc) => {
-            const c = product.content?.[loc] || {};
-            return (
-              <div key={loc} className="bg-surface border border-border rounded-lg p-4 space-y-2 text-sm">
-                <div className="font-semibold uppercase text-muted">{loc}</div>
-                <div>
-                  <div className="text-xs text-muted">Nombre</div>
-                  <div>{String(c.name || "")}</div>
+      {tab === "textos" && copyDraft && (
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h3 className="font-medium">{t("productCopy.title")}</h3>
+              <p className="text-xs text-muted mt-1">es · ca · en · fr · de · it · pt · zh</p>
+            </div>
+            <div className="flex flex-wrap items-end gap-2">
+              <label className="text-xs text-muted">
+                {t("productCopy.sourceLocale")}
+                <select
+                  className="mt-1 block border border-border rounded-md px-2 py-2 text-sm"
+                  value={sourceLocale}
+                  onChange={(e) => setSourceLocale(e.target.value as ContentLocale)}
+                >
+                  {CONTENT_LOCALES.map((loc) => (
+                    <option key={loc} value={loc}>
+                      {loc}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex items-center gap-2 text-xs text-muted px-1 pb-2">
+                <input
+                  type="checkbox"
+                  checked={overwriteManual}
+                  onChange={(e) => setOverwriteManual(e.target.checked)}
+                />
+                {t("productCopy.overwriteHint")}
+              </label>
+              <button
+                type="button"
+                className="rounded-md bg-wine text-white px-3 py-2 text-sm disabled:opacity-50"
+                disabled={!!copyBusy}
+                onClick={async () => {
+                  setCopyBusy("generate");
+                  setCopyMsg(null);
+                  try {
+                    const { job_id } = await api<{ job_id: string }>(
+                      `/products/${product.id}/generate-copy`,
+                      {
+                        method: "POST",
+                        body: JSON.stringify({
+                          mode: "generate",
+                          overwrite_manual: overwriteManual,
+                          source_locale: sourceLocale,
+                        }),
+                      },
+                    );
+                    for (let i = 0; i < 60; i++) {
+                      await new Promise((r) => setTimeout(r, 1000));
+                      const job = await api<{ status: string; error_detail?: string }>(
+                        `/jobs/${job_id}`,
+                      );
+                      if (job.status === "completed") {
+                        await load();
+                        setCopyMsg(t("productCopy.jobDone"));
+                        break;
+                      }
+                      if (job.status === "failed") {
+                        setCopyMsg(job.error_detail || t("productCopy.jobFailed"));
+                        break;
+                      }
+                    }
+                  } catch (e) {
+                    setCopyMsg((e as Error).message || t("productCopy.jobFailed"));
+                  } finally {
+                    setCopyBusy(null);
+                  }
+                }}
+              >
+                {copyBusy === "generate" ? t("productCopy.generating") : t("productCopy.generate")}
+              </button>
+              <button
+                type="button"
+                className="rounded-md border border-border px-3 py-2 text-sm disabled:opacity-50"
+                disabled={!!copyBusy}
+                onClick={async () => {
+                  setCopyBusy("translate");
+                  setCopyMsg(null);
+                  try {
+                    // Persist source edits first so translate uses latest text
+                    const content: Record<string, Record<string, unknown>> = {
+                      ...(product.content || {}),
+                    };
+                    for (const loc of CONTENT_LOCALES) {
+                      const d = copyDraft[loc];
+                      const prev = content[loc] || {};
+                      content[loc] = {
+                        ...prev,
+                        name: d.name,
+                        description: d.description,
+                        seo_title: d.seo_title,
+                        seo_meta: d.seo_meta,
+                        seo_keywords: d.seo_keywords
+                          .split(",")
+                          .map((s) => s.trim())
+                          .filter(Boolean),
+                        manually_edited: prev.manually_edited || [],
+                      };
+                    }
+                    await api(`/products/${product.id}`, {
+                      method: "PATCH",
+                      body: JSON.stringify({ content }),
+                    });
+                    const { job_id } = await api<{ job_id: string }>(
+                      `/products/${product.id}/generate-copy`,
+                      {
+                        method: "POST",
+                        body: JSON.stringify({
+                          mode: "translate",
+                          overwrite_manual: overwriteManual,
+                          source_locale: sourceLocale,
+                        }),
+                      },
+                    );
+                    for (let i = 0; i < 60; i++) {
+                      await new Promise((r) => setTimeout(r, 1000));
+                      const job = await api<{ status: string; error_detail?: string }>(
+                        `/jobs/${job_id}`,
+                      );
+                      if (job.status === "completed") {
+                        await load();
+                        setCopyMsg(t("productCopy.jobDone"));
+                        break;
+                      }
+                      if (job.status === "failed") {
+                        setCopyMsg(job.error_detail || t("productCopy.jobFailed"));
+                        break;
+                      }
+                    }
+                  } catch (e) {
+                    setCopyMsg((e as Error).message || t("productCopy.jobFailed"));
+                  } finally {
+                    setCopyBusy(null);
+                  }
+                }}
+              >
+                {copyBusy === "translate" ? t("productCopy.translating") : t("productCopy.translate")}
+              </button>
+              <button
+                type="button"
+                className="rounded-md border border-border px-3 py-2 text-sm disabled:opacity-50"
+                disabled={!!copyBusy}
+                onClick={async () => {
+                  setCopyBusy("save");
+                  setCopyMsg(null);
+                  try {
+                    const content: Record<string, Record<string, unknown>> = {
+                      ...(product.content || {}),
+                    };
+                    for (const loc of CONTENT_LOCALES) {
+                      const d = copyDraft[loc];
+                      const prev = (content[loc] || {}) as Record<string, unknown>;
+                      const manual = new Set<string>(
+                        Array.isArray(prev.manually_edited)
+                          ? (prev.manually_edited as string[])
+                          : [],
+                      );
+                      for (const field of ["name", "description", "seo_title", "seo_meta", "seo_keywords"] as const) {
+                        const nextVal =
+                          field === "seo_keywords"
+                            ? d.seo_keywords
+                                .split(",")
+                                .map((s) => s.trim())
+                                .filter(Boolean)
+                            : d[field];
+                        const prevVal =
+                          field === "seo_keywords"
+                            ? Array.isArray(prev.seo_keywords)
+                              ? (prev.seo_keywords as string[]).join(", ")
+                              : String(prev.seo_keywords || "")
+                            : String(prev[field] || "");
+                        const comparable =
+                          field === "seo_keywords"
+                            ? (nextVal as string[]).join(", ")
+                            : String(nextVal || "");
+                        if (comparable !== prevVal) manual.add(field);
+                      }
+                      content[loc] = {
+                        ...prev,
+                        name: d.name,
+                        description: d.description,
+                        seo_title: d.seo_title,
+                        seo_meta: d.seo_meta,
+                        seo_keywords: d.seo_keywords
+                          .split(",")
+                          .map((s) => s.trim())
+                          .filter(Boolean),
+                        manually_edited: Array.from(manual),
+                      };
+                    }
+                    const updated = await api<Product>(`/products/${product.id}`, {
+                      method: "PATCH",
+                      body: JSON.stringify({ content }),
+                    });
+                    setProduct(updated);
+                    setCopyDraft(contentToDraft(updated.content));
+                    setCopyMsg(t("productCopy.saved"));
+                  } catch (e) {
+                    setCopyMsg((e as Error).message || t("productCopy.jobFailed"));
+                  } finally {
+                    setCopyBusy(null);
+                  }
+                }}
+              >
+                {copyBusy === "save" ? t("productCopy.saving") : t("productCopy.save")}
+              </button>
+            </div>
+          </div>
+          {copyMsg && <p className="text-sm text-muted">{copyMsg}</p>}
+          <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {CONTENT_LOCALES.map((loc) => {
+              const c = copyDraft[loc];
+              return (
+                <div
+                  key={loc}
+                  className="bg-surface border border-border rounded-lg p-4 space-y-3 text-sm"
+                >
+                  <div className="font-semibold uppercase text-muted">{loc}</div>
+                  <label className="block">
+                    <span className="text-xs text-muted">{t("productCopy.name")}</span>
+                    <input
+                      className="mt-1 w-full border border-border rounded-md px-2 py-1.5"
+                      value={c.name}
+                      onChange={(e) =>
+                        setCopyDraft((d) =>
+                          d ? { ...d, [loc]: { ...d[loc], name: e.target.value } } : d,
+                        )
+                      }
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs text-muted">{t("productCopy.description")}</span>
+                    <textarea
+                      className="mt-1 w-full border border-border rounded-md px-2 py-1.5 min-h-24"
+                      value={c.description}
+                      onChange={(e) =>
+                        setCopyDraft((d) =>
+                          d ? { ...d, [loc]: { ...d[loc], description: e.target.value } } : d,
+                        )
+                      }
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs text-muted">
+                      {t("productCopy.seoTitle")} ({c.seo_title.length}/70)
+                    </span>
+                    <input
+                      className="mt-1 w-full border border-border rounded-md px-2 py-1.5"
+                      value={c.seo_title}
+                      onChange={(e) =>
+                        setCopyDraft((d) =>
+                          d ? { ...d, [loc]: { ...d[loc], seo_title: e.target.value } } : d,
+                        )
+                      }
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs text-muted">
+                      {t("productCopy.seoMeta")} ({c.seo_meta.length}/160)
+                    </span>
+                    <textarea
+                      className="mt-1 w-full border border-border rounded-md px-2 py-1.5 min-h-16"
+                      value={c.seo_meta}
+                      onChange={(e) =>
+                        setCopyDraft((d) =>
+                          d ? { ...d, [loc]: { ...d[loc], seo_meta: e.target.value } } : d,
+                        )
+                      }
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs text-muted">
+                      {t("productCopy.seoKeywords")} · {t("productCopy.keywordsHint")}
+                    </span>
+                    <input
+                      className="mt-1 w-full border border-border rounded-md px-2 py-1.5"
+                      value={c.seo_keywords}
+                      onChange={(e) =>
+                        setCopyDraft((d) =>
+                          d ? { ...d, [loc]: { ...d[loc], seo_keywords: e.target.value } } : d,
+                        )
+                      }
+                    />
+                  </label>
                 </div>
-                <div>
-                  <div className="text-xs text-muted">Descripción</div>
-                  <div className="text-muted">{String(c.description || "")}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-muted">SEO título</div>
-                  <div>
-                    {String(c.seo_title || "")}{" "}
-                    <span className="text-muted">({String(c.seo_title || "").length}/70)</span>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       )}
 

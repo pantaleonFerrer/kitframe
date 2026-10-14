@@ -209,6 +209,8 @@ async def _extract(session: Any, job: Job) -> None:
 
 
 async def _copy(session: Any, job: Job) -> None:
+    from kitframe.content.locales import CONTENT_LOCALES, LOCALE_LABELS
+
     product = await session.get(Product, job.entity_id)
     brand = await session.get(Brand, product.brand_id) if product else None
     assert product is not None and brand is not None
@@ -216,21 +218,62 @@ async def _copy(session: Any, job: Job) -> None:
     llm_cfg = (brand.provider_config or {}).get("llm") or {}
     llm = get_llm_client(settings, llm_cfg)
     glossary = brand.glossary or {}
+    payload = job.payload or {}
+    mode = (payload.get("mode") or "generate").strip().lower()
+    source_locale = (payload.get("source_locale") or "es").strip().lower()
+    if source_locale not in CONTENT_LOCALES:
+        source_locale = "es"
+
+    if mode == "translate":
+        source = (product.content or {}).get(source_locale) or {}
+        system = (
+            f"Translate ecommerce product copy from {LOCALE_LABELS.get(source_locale, source_locale)} "
+            f"into all required locales. Tone: {glossary.get('tone', '')}. "
+            f"Do not translate these terms literally if they are brand names: "
+            f"{glossary.get('do_not_translate', [])}. "
+            "Keep commercial names natural for each market. "
+            "seo_title max 70 chars, seo_meta max 160 chars."
+        )
+        user = str(
+            {
+                "source_locale": source_locale,
+                "source": {
+                    "name": source.get("name"),
+                    "description": source.get("description"),
+                    "seo_title": source.get("seo_title"),
+                    "seo_meta": source.get("seo_meta"),
+                    "seo_keywords": source.get("seo_keywords") or [],
+                },
+                "target_locales": list(CONTENT_LOCALES),
+            }
+        )
+        temperature = 0.3
+    else:
+        system = (
+            f"Write ecommerce product copy in all required locales. "
+            f"Tone: {glossary.get('tone', '')}. "
+            f"Do not translate: {glossary.get('do_not_translate', [])}. "
+            "Propose a commercial product name derived from the technical title/reference when useful. "
+            "seo_title max 70 chars, seo_meta max 160 chars."
+        )
+        user = str(product.structured_data)
+        temperature = 0.4
+
     result = llm.complete_json(
-        f"Write product copy. Tone: {glossary.get('tone', '')}. "
-        f"Do not translate: {glossary.get('do_not_translate', [])}.",
-        str(product.structured_data),
+        system,
+        user,
         copy_schema(),
         schema_name="copy",
-        temperature=0.4,
+        temperature=temperature,
     )
-    content = product.content or {}
-    for locale, payload in result.items():
-        if locale not in ("es", "ca", "en"):
+    content = dict(product.content or {})
+    for locale in CONTENT_LOCALES:
+        payload_loc = result.get(locale)
+        if not isinstance(payload_loc, dict):
             continue
         existing = content.get(locale) or {}
         manual = set(existing.get("manually_edited") or [])
-        merged = {**payload, "manually_edited": list(manual)}
+        merged = {**payload_loc, "manually_edited": list(manual)}
         for field in manual:
             if field in existing:
                 merged[field] = existing[field]

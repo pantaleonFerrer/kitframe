@@ -517,6 +517,28 @@ export type Messages = {
     working: string;
     typeToConfirm: string;
   };
+
+  productCopy: {
+    title: string;
+    generate: string;
+    translate: string;
+    save: string;
+    saving: string;
+    generating: string;
+    translating: string;
+    sourceLocale: string;
+    name: string;
+    description: string;
+    seoTitle: string;
+    seoMeta: string;
+    seoKeywords: string;
+    keywordsHint: string;
+    saved: string;
+    jobDone: string;
+    jobFailed: string;
+    overwriteHint: string;
+  };
+
   inbox: {
     title: string;
     empty: string;

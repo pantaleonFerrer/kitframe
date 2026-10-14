@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,6 +16,7 @@ async def enqueue_job(
     entity_type: str | None,
     entity_id: UUID | None,
     requested_by: UUID | None,
+    payload: dict[str, Any] | None = None,
 ) -> Job:
     job = Job(
         brand_id=brand_id,
@@ -23,6 +25,7 @@ async def enqueue_job(
         entity_id=entity_id,
         requested_by=requested_by,
         status="queued",
+        payload=payload or {},
     )
     session.add(job)
     await session.flush()

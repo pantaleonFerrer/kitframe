@@ -86,6 +86,8 @@ def taxonomy_extraction_schema(taxonomy: dict[str, Any]) -> dict[str, Any]:
 
 
 def copy_schema() -> dict[str, Any]:
+    from kitframe.content.locales import CONTENT_LOCALES
+
     locale = {
         "type": "object",
         "additionalProperties": False,
@@ -102,8 +104,8 @@ def copy_schema() -> dict[str, Any]:
         {
             "type": "object",
             "additionalProperties": False,
-            "properties": {"es": locale, "ca": locale, "en": locale},
-            "required": ["es", "ca", "en"],
+            "properties": {loc: locale for loc in CONTENT_LOCALES},
+            "required": list(CONTENT_LOCALES),
         }
     )
 

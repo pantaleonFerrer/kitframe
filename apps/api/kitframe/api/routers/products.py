@@ -48,6 +48,8 @@ class ConfirmFields(BaseModel):
 
 class GenerateCopyBody(BaseModel):
     overwrite_manual: bool = False
+    mode: str = "generate"  # generate | translate
+    source_locale: str = "es"
 
 
 class PhasePatch(BaseModel):
@@ -110,12 +112,14 @@ async def patch_product(product_id: UUID, body: ProductPatch, ctx: BrandAuthDep,
     product = await _product(session, ctx.brand_id, product_id)
     if not await can(session, ctx, "product.edit_data", product=product):
         raise AppError(ErrorCode.FORBIDDEN, "Forbidden", status_code=403)
-    if product.current_phase != "data" and ctx.membership.role not in ("admin", "owner"):
-        raise AppError(ErrorCode.PHASE_LOCKED, "Data locked after data phase", status_code=409)
-    phase = await transitions.get_phase(session, product.id, product.current_phase) if product.current_phase != "published" else None
-    if phase:
-        transitions.assert_not_locked(phase)
     data = body.model_dump(exclude_unset=True)
+    only_content = set(data.keys()) <= {"content"}
+    if not only_content:
+        if product.current_phase != "data" and ctx.membership.role not in ("admin", "owner"):
+            raise AppError(ErrorCode.PHASE_LOCKED, "Data locked after data phase", status_code=409)
+        phase = await transitions.get_phase(session, product.id, product.current_phase) if product.current_phase != "published" else None
+        if phase:
+            transitions.assert_not_locked(phase)
     for k, v in data.items():
         setattr(product, k, v)
     if "structured_data" in data and "garment_category" in (data["structured_data"] or {}):
@@ -149,9 +153,31 @@ async def confirm_fields(product_id: UUID, body: ConfirmFields, ctx: BrandAuthDe
 
 @router.post("/products/{product_id}/generate-copy")
 async def generate_copy(product_id: UUID, body: GenerateCopyBody, ctx: BrandAuthDep, session: SessionDep) -> dict[str, Any]:
+    from kitframe.content.locales import CONTENT_LOCALES
+
     product = await _product(session, ctx.brand_id, product_id)
     if not await can(session, ctx, "product.edit_data", product=product):
         raise AppError(ErrorCode.FORBIDDEN, "Forbidden", status_code=403)
+    mode = (body.mode or "generate").strip().lower()
+    if mode not in ("generate", "translate"):
+        raise AppError(ErrorCode.VALIDATION_ERROR, "Invalid mode", status_code=422)
+    source = (body.source_locale or "es").strip().lower()
+    if source not in CONTENT_LOCALES:
+        raise AppError(ErrorCode.VALIDATION_ERROR, "Invalid source_locale", status_code=422)
+    if mode == "translate":
+        src = (product.content or {}).get(source) or {}
+        if not (src.get("name") or src.get("description")):
+            raise AppError(
+                ErrorCode.VALIDATION_ERROR,
+                f"No source copy in locale {source} to translate",
+                status_code=422,
+            )
+    if body.overwrite_manual:
+        content = dict(product.content or {})
+        for loc, payload in list(content.items()):
+            if isinstance(payload, dict):
+                content[loc] = {**payload, "manually_edited": []}
+        product.content = content
     job = await enqueue_job(
         session,
         brand_id=ctx.brand_id,
@@ -159,9 +185,14 @@ async def generate_copy(product_id: UUID, body: GenerateCopyBody, ctx: BrandAuth
         entity_type="product",
         entity_id=product.id,
         requested_by=ctx.user.id,
+        payload={
+            "mode": mode,
+            "source_locale": source,
+            "overwrite_manual": body.overwrite_manual,
+        },
     )
     await session.commit()
-    return {"job_id": str(job.id)}
+    return {"job_id": str(job.id), "mode": mode}
 
 
 @router.get("/products/{product_id}/checklist")

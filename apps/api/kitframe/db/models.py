@@ -795,6 +795,9 @@ class Job(Base):
     status: Mapped[str] = mapped_column(Text, nullable=False, server_default="queued")
     entity_type: Mapped[str | None] = mapped_column(Text)
     entity_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    payload: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default=text("'{}'::jsonb")
+    )
     attempts: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     error_code: Mapped[str | None] = mapped_column(Text)
     error_detail: Mapped[str | None] = mapped_column(Text)

@@ -77,7 +77,7 @@ class FakeLLMClient:
                     }
                 ]
             }
-        return {
+        base = {
             "es": {
                 "name": "Camiseta FC Barcelona",
                 "description": "Camiseta oficial del FC Barcelona con escudo nítido y tejido técnico.",
@@ -99,4 +99,44 @@ class FakeLLMClient:
                 "seo_meta": "Buy the official Blaugrana FC Barcelona jersey.",
                 "seo_keywords": ["Barça", "jersey", "official"],
             },
+            "fr": {
+                "name": "Maillot FC Barcelona",
+                "description": "Maillot officiel du FC Barcelona avec écusson net et tissu technique.",
+                "seo_title": "Maillot officiel FC Barcelona",
+                "seo_meta": "Achetez le maillot officiel Blaugrana du FC Barcelona.",
+                "seo_keywords": ["Barça", "maillot", "officiel"],
+            },
+            "de": {
+                "name": "FC Barcelona Trikot",
+                "description": "Offizielles FC-Barcelona-Trikot mit klarem Wappen und Funktionsstoff.",
+                "seo_title": "Offizielles FC Barcelona Trikot",
+                "seo_meta": "Kaufen Sie das offizielle Blaugrana-Trikot von FC Barcelona.",
+                "seo_keywords": ["Barça", "Trikot", "offiziell"],
+            },
+            "it": {
+                "name": "Maglia FC Barcelona",
+                "description": "Maglia ufficiale del FC Barcelona con stemma nitido e tessuto tecnico.",
+                "seo_title": "Maglia ufficiale FC Barcelona",
+                "seo_meta": "Acquista la maglia ufficiale Blaugrana del FC Barcelona.",
+                "seo_keywords": ["Barça", "maglia", "ufficiale"],
+            },
+            "pt": {
+                "name": "Camisola FC Barcelona",
+                "description": "Camisola oficial do FC Barcelona com emblema nítido e tecido técnico.",
+                "seo_title": "Camisola oficial FC Barcelona",
+                "seo_meta": "Compre a camisola oficial Blaugrana do FC Barcelona.",
+                "seo_keywords": ["Barça", "camisola", "oficial"],
+            },
+            "zh": {
+                "name": "巴塞罗那足球俱乐部球衣",
+                "description": "官方巴塞罗那足球俱乐部球衣，队徽清晰，面料专业。",
+                "seo_title": "官方巴塞罗那足球俱乐部球衣",
+                "seo_meta": "购买官方 Blaugrana 巴塞罗那足球俱乐部球衣。",
+                "seo_keywords": ["Barça", "球衣", "官方"],
+            },
         }
+        # If schema asks for a subset, return only those keys.
+        props = set((json_schema.get("properties") or {}).keys())
+        if props:
+            return {k: v for k, v in base.items() if k in props}
+        return base
