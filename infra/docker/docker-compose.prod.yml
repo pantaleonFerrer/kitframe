@@ -1,30 +1,21 @@
 # Production stack for Hetzner — coexists with gathered-brain on the same VPS.
 # Host Nginx owns :80/:443 (see infra/nginx/kitframe.conf).
-# Images are built on the server (docker compose build), same as gathered-brain.
+# Postgres is external (same as gathered-brain) — set DATABASE_URL in .env.
 #
 # Usage (from /opt/kitframe):
 #   ./scripts/deploy.sh
 
 name: kitframe
 
-services:
-  postgres:
-    image: postgres:16
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-kitframe}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB:-kitframe}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-kitframe} -d ${POSTGRES_DB:-kitframe}"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-    networks:
-      - kitframe
+x-app-env: &app-env
+  APP_ENV: ${APP_ENV:-production}
+  DATABASE_URL: ${DATABASE_URL}
+  CORS_ORIGINS: ${CORS_ORIGINS:-https://${DOMAIN}}
+  APP_BASE_URL: ${APP_BASE_URL:-https://${DOMAIN}}
+  API_BASE_URL: ${API_BASE_URL:-https://${DOMAIN}}
+  SEED_PASSWORDS: ${SEED_PASSWORDS:-false}
 
+services:
   api:
     build:
       context: ../..
@@ -37,15 +28,10 @@ services:
     env_file:
       - ../../.env
     environment:
-      APP_ENV: ${APP_ENV:-production}
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-kitframe}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-kitframe}
-      CORS_ORIGINS: ${CORS_ORIGINS:-https://${DOMAIN}}
-      APP_BASE_URL: ${APP_BASE_URL:-https://${DOMAIN}}
-      API_BASE_URL: ${API_BASE_URL:-https://${DOMAIN}}
-      SEED_PASSWORDS: ${SEED_PASSWORDS:-false}
-    depends_on:
-      postgres:
-        condition: service_healthy
+      <<: *app-env
+    extra_hosts:
+      # Reach Postgres on the host (if DATABASE_URL uses host.docker.internal)
+      - "host.docker.internal:host-gateway"
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/api/v1/healthz')\""]
       interval: 15s
@@ -64,14 +50,10 @@ services:
     env_file:
       - ../../.env
     environment:
-      APP_ENV: ${APP_ENV:-production}
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-kitframe}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-kitframe}
-      APP_BASE_URL: ${APP_BASE_URL:-https://${DOMAIN}}
-      API_BASE_URL: ${API_BASE_URL:-https://${DOMAIN}}
-      SEED_PASSWORDS: ${SEED_PASSWORDS:-false}
+      <<: *app-env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
-      postgres:
-        condition: service_healthy
       api:
         condition: service_healthy
     networks:
@@ -95,9 +77,6 @@ services:
         condition: service_healthy
     networks:
       - kitframe
-
-volumes:
-  postgres_data:
 
 networks:
   kitframe:

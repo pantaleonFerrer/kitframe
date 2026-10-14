@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Deploy Kitframe on the shared Hetzner host (build + up), same style as gathered-brain.
+# Postgres is external — set DATABASE_URL in .env.
 # Run from the repo root: ./scripts/deploy.sh
 set -euo pipefail
 
@@ -14,52 +15,55 @@ COMPOSE=(
   --env-file "$ROOT/.env"
 )
 
+# Read KEY=value from .env without `source` (values like EMAIL_FROM="Name <a@b>" break bash).
+env_get() {
+  local key="$1"
+  local line
+  line="$(grep -E "^${key}=" .env | tail -n1 || true)"
+  [[ -n "$line" ]] || return 0
+  line="${line#*=}"
+  line="${line%$'\r'}"
+  if [[ "$line" == \"*\" ]]; then
+    line="${line#\"}"
+    line="${line%\"}"
+  elif [[ "$line" == \'*\' ]]; then
+    line="${line#\'}"
+    line="${line%\'}"
+  fi
+  printf '%s' "$line"
+}
+
 if [[ ! -f .env ]]; then
   echo "ERROR: .env missing — copy infra/env/production.example to .env and fill secrets." >&2
   exit 1
 fi
 
-# shellcheck disable=SC1091
-set -a
-# shellcheck source=/dev/null
-source .env
-set +a
+DOMAIN="$(env_get DOMAIN)"
+DATABASE_URL="$(env_get DATABASE_URL)"
+JWT_SECRET="$(env_get JWT_SECRET)"
+API_HOST_PORT="$(env_get KITFRAME_API_HOST_PORT)"
+API_HOST_PORT="${API_HOST_PORT:-18080}"
 
-if [[ -z "${DOMAIN:-}" ]]; then
+if [[ -z "$DOMAIN" ]]; then
   echo "ERROR: DOMAIN is required in .env" >&2
   exit 1
 fi
-if [[ -z "${POSTGRES_PASSWORD:-}" ]]; then
-  echo "ERROR: POSTGRES_PASSWORD is required in .env" >&2
+if [[ -z "$DATABASE_URL" ]]; then
+  echo "ERROR: DATABASE_URL is required in .env (external Postgres)." >&2
   exit 1
 fi
-if [[ -z "${JWT_SECRET:-}" ]] || [[ ${#JWT_SECRET} -lt 32 ]]; then
+if [[ -z "$JWT_SECRET" ]] || [[ ${#JWT_SECRET} -lt 32 ]]; then
   echo "ERROR: JWT_SECRET missing or shorter than 32 characters." >&2
   exit 1
 fi
 
-API_HOST_PORT="${KITFRAME_API_HOST_PORT:-18080}"
-
 echo "==> Building images..."
 "${COMPOSE[@]}" build
 
-echo "==> Starting Postgres"
-"${COMPOSE[@]}" up -d postgres
-for i in $(seq 1 30); do
-  if "${COMPOSE[@]}" exec -T postgres pg_isready -U "${POSTGRES_USER:-kitframe}" -d "${POSTGRES_DB:-kitframe}" >/dev/null 2>&1; then
-    break
-  fi
-  if [[ "$i" -eq 30 ]]; then
-    echo "ERROR: Postgres did not become ready." >&2
-    exit 1
-  fi
-  sleep 1
-done
-
-echo "==> Running migrations"
+echo "==> Running migrations against external Postgres"
 "${COMPOSE[@]}" run --rm --no-deps api kitframe migrate
 
-echo "==> Starting stack"
+echo "==> Starting stack (api + worker + web)"
 "${COMPOSE[@]}" up -d --remove-orphans
 
 echo "==> Container status"

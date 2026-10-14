@@ -61,7 +61,8 @@ cp infra/env/production.example .env   # fill secrets + DOMAIN
 ```
 
 CD: after green CI on `main`, workflow **Deploy Hetzner** SSHs and runs that script.  
-Ports: API `127.0.0.1:18080`, web `127.0.0.1:13000` (gathered keeps `:8080`).
+Ports: API `127.0.0.1:18080`, web `127.0.0.1:13000` (gathered keeps `:8080`).  
+Postgres: externo (misma máquina/instancia que gathered; DB `kitframe` propia).
 
 ## Legacy
 

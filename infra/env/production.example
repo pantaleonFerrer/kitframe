@@ -2,11 +2,11 @@
 # Co-hosted with gathered-brain: host Nginx on :80/:443; do not use host :8080.
 
 # --- Edge ---
-DOMAIN=kitframe.example.com
+DOMAIN=kitframe.gathered.so
 APP_ENV=production
-APP_BASE_URL=https://kitframe.example.com
-API_BASE_URL=https://kitframe.example.com
-CORS_ORIGINS=https://kitframe.example.com
+APP_BASE_URL=https://kitframe.gathered.so
+API_BASE_URL=https://kitframe.gathered.so
+CORS_ORIGINS=https://kitframe.gathered.so
 # Browser same-origin via Nginx. Server-side call to api container:
 NEXT_PUBLIC_API_URL=/api/v1
 API_URL=http://api:8080/api/v1
@@ -15,12 +15,16 @@ API_URL=http://api:8080/api/v1
 KITFRAME_API_HOST_PORT=18080
 KITFRAME_WEB_HOST_PORT=13000
 
-# --- Postgres (compose service; images built on the server) ---
-POSTGRES_USER=kitframe
-POSTGRES_PASSWORD=CHANGE_ME_STRONG_PASSWORD
-POSTGRES_DB=kitframe
-# DATABASE_URL is set by compose; keep this only if you point elsewhere:
-# DATABASE_URL=postgresql+asyncpg://kitframe:CHANGE_ME@postgres:5432/kitframe
+# --- Postgres externo (NO levantar Postgres en compose) ---
+# Crea una DB/usuario propios (no reutilices la DB de gathered):
+#   sudo -u postgres createuser kitframe
+#   sudo -u postgres createdb -O kitframe kitframe
+#   sudo -u postgres psql -c "ALTER USER kitframe PASSWORD '...';"
+#
+# Si Postgres escucha en el mismo host:
+DATABASE_URL=postgresql+asyncpg://kitframe:CHANGE_ME@host.docker.internal:5432/kitframe
+# Si está en otra máquina / IP privada:
+# DATABASE_URL=postgresql+asyncpg://kitframe:CHANGE_ME@10.0.0.3:5432/kitframe
 
 # --- Auth / crypto ---
 JWT_SECRET=CHANGE_ME_MIN_32_CHARS________________
@@ -49,7 +53,7 @@ SMTP_PORT=587
 SMTP_USER=
 SMTP_PASSWORD=
 SMTP_USE_TLS=true
-EMAIL_FROM=Kitframe <noreply@kitframe.example.com>
+EMAIL_FROM="Kitframe <noreply@kitframe.gathered.so>"
 
 # --- Ops ---
 SEED_PASSWORDS=false
