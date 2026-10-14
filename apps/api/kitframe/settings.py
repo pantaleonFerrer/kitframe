@@ -10,9 +10,31 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BFL_EU_HOST = "api.eu.bfl.ai"
 
-# Prefer repo-root .env even when the process cwd is apps/api
-_ROOT_ENV = Path(__file__).resolve().parents[3] / ".env"
-_ENV_FILES = (str(_ROOT_ENV), ".env") if _ROOT_ENV.is_file() else (".env",)
+
+def _env_files() -> tuple[str, ...]:
+    # Local monorepo: apps/api/kitframe/settings.py → repo root .env (parents[3]).
+    # Docker image layout is /app/kitframe/settings.py — only parents[0..1] exist.
+    here = Path(__file__).resolve()
+    candidates: list[Path] = [Path(".env")]
+    try:
+        candidates.insert(0, here.parents[3] / ".env")
+    except IndexError:
+        pass
+    for parent in here.parents:
+        candidates.append(parent / ".env")
+    existing = []
+    seen: set[str] = set()
+    for path in candidates:
+        key = str(path)
+        if key in seen:
+            continue
+        seen.add(key)
+        if path.is_file():
+            existing.append(key)
+    return tuple(existing) if existing else (".env",)
+
+
+_ENV_FILES = _env_files()
 
 
 class Settings(BaseSettings):
