@@ -2,11 +2,17 @@
 
 Green / non-red rows missing Spanish description are filled. Red rows are skipped.
 Locales in the sheet: ES, CA, EN, FR, DE, JP, KR (+ meta titles/descriptions).
+
+Descriptions are grounded in product photos; fit / measures / care come from
+operator notes when provided (translated to all locales).
 """
 from __future__ import annotations
 
 import io
+import json
+import re
 from dataclasses import dataclass
+from pathlib import PurePosixPath
 from typing import Any
 
 from openpyxl import load_workbook
@@ -48,6 +54,9 @@ DEFAULT_FIT = {
     "JP": "レギュラーフィット：いつものサイズを選んでください。",
     "KR": "레귤러 핏: 평소 사이즈를 선택하세요.",
 }
+
+IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
+MAX_IMAGES_PER_REF = 8
 
 
 @dataclass
@@ -105,6 +114,81 @@ def list_rows_to_fill(wb: Workbook, *, only_missing_es_desc: bool = True) -> lis
                 existing_fit_es=str(_cell(ws, row, "V").value or "").strip(),
             )
         )
+    return out
+
+
+def normalize_ref_key(value: str) -> str:
+    return re.sub(r"[^A-Z0-9]", "", value.strip().upper())
+
+
+def is_product_image_filename(filename: str) -> bool:
+    suffix = PurePosixPath(filename).suffix.lower()
+    return suffix in IMAGE_SUFFIXES
+
+
+def match_filename_to_ref(filename: str, refs: list[str]) -> str | None:
+    """Map `BLMP813081_front.jpg` / `blmp813081-1.png` to a pending ref."""
+    if not refs or not is_product_image_filename(filename):
+        return None
+    stem = PurePosixPath(filename).stem
+    # Longer refs first so BLMP813081A beats BLMP813081
+    ordered = sorted(refs, key=len, reverse=True)
+    for ref in ordered:
+        if not ref.strip():
+            continue
+        pattern = re.compile(
+            r"^" + re.escape(ref.strip()) + r"(?:$|[_\-\s.].*)",
+            re.IGNORECASE,
+        )
+        if pattern.match(stem):
+            return ref
+    return None
+
+
+def group_images_by_ref(
+    filenames: list[str],
+    refs: list[str],
+) -> tuple[dict[str, list[str]], list[str]]:
+    """Return (ref -> filenames, unmatched filenames)."""
+    grouped: dict[str, list[str]] = {r: [] for r in refs}
+    unmatched: list[str] = []
+    for name in filenames:
+        ref = match_filename_to_ref(name, refs)
+        if ref is None:
+            unmatched.append(name)
+            continue
+        if len(grouped[ref]) < MAX_IMAGES_PER_REF:
+            grouped[ref].append(name)
+    return grouped, unmatched
+
+
+def parse_notes_json(raw: str | None) -> dict[str, dict[str, str]]:
+    """Parse notes keyed by product ref: {fit, care, measures, extra}."""
+    if not raw or not str(raw).strip():
+        return {}
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"notes_json is not valid JSON: {exc}") from exc
+    if not isinstance(data, dict):
+        raise ValueError("notes_json must be an object keyed by product reference")
+    out: dict[str, dict[str, str]] = {}
+    for key, value in data.items():
+        ref = str(key).strip()
+        if not ref:
+            continue
+        if isinstance(value, str):
+            out[ref] = {"extra": value.strip()}
+            continue
+        if not isinstance(value, dict):
+            continue
+        block: dict[str, str] = {}
+        for field in ("fit", "care", "measures", "extra"):
+            v = value.get(field)
+            if v is not None and str(v).strip():
+                block[field] = str(v).strip()
+        if block:
+            out[ref] = block
     return out
 
 
@@ -181,13 +265,45 @@ def build_system_prompt(*, tone: str, do_not_translate: list[str]) -> str:
         "You write ecommerce product copy for FC Barcelona merchandising "
         "(official Club / co-branded / licensed products). "
         f"Tone: {tone or 'clear, commercial, factual'}. "
-        f"Never alter or invent translations for these brand terms: {do_not_translate or ['FC Barcelona', 'Barça', 'Blaugrana']}. "
-        "Follow the spreadsheet column style used by FC Barcelona ecom: "
-        "commercial title, 1–3 sentence description with materials/construction when known, "
-        "fit line (or N/A for accessories), composition/care, "
-        "meta_title (<=70 chars) and meta_description (<=160 chars). "
+        f"Never alter or invent translations for these brand terms: "
+        f"{do_not_translate or ['FC Barcelona', 'Barça', 'Blaugrana']}. "
+        "CRITICAL: Product descriptions MUST be grounded in the attached product photos — "
+        "describe colour, graphics, silhouette, collar, print and visible construction you see. "
+        "Derive a natural commercial product name from the technical title (column C). "
+        "For fit / measures / care: when the operator provides notes, translate those facts "
+        "faithfully into every locale and do NOT invent numbers or care symbols. "
+        "If notes omit a field, leave measures empty and use cautious care wording "
+        "(follow the care label) rather than inventing fabric percentages. "
+        "Accessories may use N/A for fit when appropriate. "
+        "meta_title <= 70 chars, meta_description <= 160 chars. "
         "Return ALL locales: ES, CA, EN, FR, DE, JP, KR. "
-        "Derive a natural commercial name from the technical title. "
-        "Do not invent precise fabric percentages if unknown — use cautious wording "
-        "and 'follow the care label' guidance."
+        "Plain text only (no HTML)."
     )
+
+
+def build_user_prompt(
+    row: EcomRow,
+    *,
+    notes: dict[str, str] | None = None,
+    image_count: int = 0,
+) -> str:
+    notes = notes or {}
+    payload = {
+        "referencia": row.ref,
+        "titulo_tecnico": row.title,
+        "coleccion": row.collection,
+        "tipo_producto": row.product_type,
+        "fit_es_existente": row.existing_fit_es or None,
+        "fotos_adjuntas": image_count,
+        "notas_operador": {
+            "fit": notes.get("fit") or None,
+            "medidas": notes.get("measures") or None,
+            "cuidados": notes.get("care") or None,
+            "extra": notes.get("extra") or None,
+        },
+        "instrucciones": (
+            "Write copy from the photos. Use notas_operador for fit/measures/care when present. "
+            "Translate notes into every locale."
+        ),
+    }
+    return json.dumps(payload, ensure_ascii=False)

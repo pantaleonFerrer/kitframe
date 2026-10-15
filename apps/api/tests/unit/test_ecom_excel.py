@@ -7,8 +7,12 @@ from openpyxl.styles import PatternFill
 
 from kitframe.content.ecom_excel import (
     apply_row_fill,
+    build_user_prompt,
+    group_images_by_ref,
     list_rows_to_fill,
     load_workbook_bytes,
+    match_filename_to_ref,
+    parse_notes_json,
     workbook_to_bytes,
 )
 
@@ -64,3 +68,45 @@ def test_apply_row_fill_writes_es() -> None:
     assert wb2.active["U4"].value == "Descripción de prueba"
     assert wb2.active["BK4"].value == "Meta"
     assert wb2.active["BR4"].value == "Meta desc"
+
+
+def test_match_filename_to_ref() -> None:
+    refs = ["BLMP813081", "BLMP813082"]
+    assert match_filename_to_ref("BLMP813081.jpg", refs) == "BLMP813081"
+    assert match_filename_to_ref("blmp813081_1.png", refs) == "BLMP813081"
+    assert match_filename_to_ref("BLMP813082-front.webp", refs) == "BLMP813082"
+    assert match_filename_to_ref("random.jpg", refs) is None
+    assert match_filename_to_ref("BLMP81308.jpg", refs) is None  # prefix too short
+
+
+def test_group_images_by_ref() -> None:
+    refs = ["BLMP813081", "BLMP813082"]
+    grouped, unmatched = group_images_by_ref(
+        ["BLMP813081.jpg", "BLMP813081_2.png", "other.gif", "BLMP813082.jpg"],
+        refs,
+    )
+    assert [f for f in grouped["BLMP813081"]] == ["BLMP813081.jpg", "BLMP813081_2.png"]
+    assert grouped["BLMP813082"] == ["BLMP813082.jpg"]
+    assert unmatched == ["other.gif"]
+
+
+def test_parse_notes_json() -> None:
+    notes = parse_notes_json(
+        '{"BLMP813081": {"fit": "Regular", "care": "30C", "extra": "official"}}'
+    )
+    assert notes["BLMP813081"]["fit"] == "Regular"
+    assert notes["BLMP813081"]["care"] == "30C"
+    assert parse_notes_json('{"X": "free text"}')["X"]["extra"] == "free text"
+
+
+def test_build_user_prompt_includes_notes() -> None:
+    wb = load_workbook_bytes(_sample_wb())
+    row = list_rows_to_fill(wb)[0]
+    user = build_user_prompt(
+        row,
+        notes={"fit": "Slim", "care": "Wash 30C", "measures": "Chest 52"},
+        image_count=2,
+    )
+    assert "SKU-GREEN" in user
+    assert "Slim" in user
+    assert '"fotos_adjuntas": 2' in user

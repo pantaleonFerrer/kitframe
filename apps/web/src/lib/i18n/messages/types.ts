@@ -53,6 +53,7 @@ export type Messages = {
     references: string;
     projects: string;
     myTasks: string;
+    ecomDescriptions: string;
     productImages: string;
     data: string;
     copy: string;
@@ -519,6 +520,28 @@ export type Messages = {
     ecomExcelFilled: string;
     ecomExcelRecent: string;
     ecomExcelNoFile: string;
+    ecomExcelNoPending: string;
+    ecomExcelStep1: string;
+    ecomExcelStep2: string;
+    ecomExcelStep3: string;
+    ecomExcelStepExcel: string;
+    ecomExcelStepPhotos: string;
+    ecomExcelParsing: string;
+    ecomExcelPhotosHint: string;
+    ecomExcelDropPhotos: string;
+    ecomExcelPhotosNaming: string;
+    ecomExcelPhotosSelected: string;
+    ecomExcelUnmatched: string;
+    ecomExcelMissingPhotos: string;
+    ecomExcelPhotoCount: string;
+    ecomExcelNeedsPhoto: string;
+    ecomExcelNotesHint: string;
+    ecomExcelNoteFit: string;
+    ecomExcelNoteCare: string;
+    ecomExcelNoteMeasures: string;
+    ecomExcelNoteExtra: string;
+    ecomExcelUploading: string;
+    ecomExcelTimeout: string;
   };
   multiUpload: {
     dropHere: string;

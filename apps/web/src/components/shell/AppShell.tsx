@@ -8,6 +8,7 @@ import {
   Briefcase,
   CheckSquare,
   Clapperboard,
+  FileSpreadsheet,
   LogOut,
   Menu,
   Scale,
@@ -30,6 +31,7 @@ const NAV: {
 }[] = [
   { href: "/tareas", labelKey: "nav.myTasks", icon: CheckSquare },
   { href: "/proyectos", labelKey: "nav.projects", icon: Briefcase },
+  { href: "/descripciones", labelKey: "nav.ecomDescriptions", icon: FileSpreadsheet },
   { href: "/estudio", labelKey: "nav.studio", icon: Clapperboard, needStudio: true },
   { href: "/biblioteca", labelKey: "nav.library", icon: BookImage },
   { href: "/derechos", labelKey: "nav.rights", icon: Scale, admin: true },

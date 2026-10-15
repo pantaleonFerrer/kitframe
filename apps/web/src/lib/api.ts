@@ -95,7 +95,9 @@ export async function api<T>(
     } catch {
       /* ignore */
     }
-    const err = new Error(body?.error?.code || `http_${res.status}`) as Error & {
+    const err = new Error(
+      body?.error?.message || body?.error?.code || `http_${res.status}`,
+    ) as Error & {
       code?: string;
       details?: Record<string, unknown>;
       status?: number;

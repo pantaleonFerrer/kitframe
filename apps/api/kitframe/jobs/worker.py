@@ -213,9 +213,12 @@ async def _extract(session: Any, job: Job) -> None:
 async def _fill_ecom_excel(session: Any, job: Job, settings: Any) -> None:
     from uuid import uuid4
 
+    from sqlalchemy.orm.attributes import flag_modified
+
     from kitframe.content.ecom_excel import (
         apply_row_fill,
         build_system_prompt,
+        build_user_prompt,
         ecom_row_schema,
         list_rows_to_fill,
         load_workbook_bytes,
@@ -231,9 +234,43 @@ async def _fill_ecom_excel(session: Any, job: Job, settings: Any) -> None:
     if not input_key:
         raise RuntimeError("fill_ecom_excel missing input_storage_key")
 
+    async def _set_progress(
+        *,
+        stage: str,
+        current: int,
+        total: int,
+        current_ref: str | None = None,
+        message: str = "",
+        filled_refs: list[str] | None = None,
+        failed_ref: str | None = None,
+    ) -> None:
+        payload["progress"] = {
+            "stage": stage,
+            "current": current,
+            "total": total,
+            "current_ref": current_ref,
+            "message": message,
+            "filled_refs": list(filled_refs or []),
+            "failed_ref": failed_ref,
+        }
+        job.payload = payload
+        flag_modified(job, "payload")
+        await session.commit()
+
+    await _set_progress(
+        stage="loading",
+        current=0,
+        total=int(payload.get("pending_count") or 0),
+        message="Loading workbook and photos…",
+    )
+
     data = get_bytes(settings, str(input_key))
     wb = load_workbook_bytes(data)
     rows = list_rows_to_fill(wb)
+    total = len(rows)
+    images_by_ref = payload.get("images_by_ref") or {}
+    notes_by_ref = payload.get("notes_by_ref") or {}
+
     llm_cfg = (brand.provider_config or {}).get("llm") or {}
     llm = get_llm_client(settings, llm_cfg)
     glossary = brand.glossary or {}
@@ -243,25 +280,85 @@ async def _fill_ecom_excel(session: Any, job: Job, settings: Any) -> None:
     )
 
     filled = 0
-    for row in rows:
-        user = str(
-            {
-                "referencia": row.ref,
-                "titulo_tecnico": row.title,
-                "coleccion": row.collection,
-                "tipo_producto": row.product_type,
-                "fit_es_existente": row.existing_fit_es or None,
-            }
+    filled_refs: list[str] = []
+    for idx, row in enumerate(rows, start=1):
+        await _set_progress(
+            stage="filling",
+            current=idx,
+            total=total,
+            current_ref=row.ref,
+            message=f"Writing copy for {row.ref} ({idx}/{total})…",
+            filled_refs=filled_refs,
         )
-        result = await llm.complete_json_async(
-            system,
-            user,
-            ecom_row_schema(),
-            schema_name="ecom_excel_row",
-            temperature=0.35,
-        )
+
+        img_metas = images_by_ref.get(row.ref) or []
+        images: list[bytes] = []
+        for meta in img_metas[:8]:
+            key = meta.get("storage_key") if isinstance(meta, dict) else None
+            if not key:
+                continue
+            try:
+                images.append(get_bytes(settings, str(key)))
+            except Exception:
+                logger.warning(
+                    "ecom_excel_image_missing",
+                    extra={"ref": row.ref, "key": str(key)},
+                )
+        if not images:
+            await _set_progress(
+                stage="failed",
+                current=idx,
+                total=total,
+                current_ref=row.ref,
+                message=f"No photos available for {row.ref}",
+                filled_refs=filled_refs,
+                failed_ref=row.ref,
+            )
+            raise RuntimeError(f"No photos available for {row.ref}")
+
+        notes = notes_by_ref.get(row.ref) if isinstance(notes_by_ref.get(row.ref), dict) else {}
+        user = build_user_prompt(row, notes=notes or {}, image_count=len(images))
+        try:
+            result = await llm.complete_json_async(
+                system,
+                user,
+                ecom_row_schema(),
+                schema_name="ecom_excel_row",
+                images=images,
+                temperature=0.35,
+            )
+        except Exception:
+            await _set_progress(
+                stage="failed",
+                current=idx,
+                total=total,
+                current_ref=row.ref,
+                message=f"LLM failed on {row.ref}",
+                filled_refs=filled_refs,
+                failed_ref=row.ref,
+            )
+            raise
+
         apply_row_fill(wb, row.row, result)
         filled += 1
+        filled_refs.append(row.ref)
+        payload["filled_count"] = filled
+        await _set_progress(
+            stage="filling",
+            current=idx,
+            total=total,
+            current_ref=row.ref,
+            message=f"Done {row.ref} ({idx}/{total})",
+            filled_refs=filled_refs,
+        )
+
+    await _set_progress(
+        stage="saving",
+        current=total,
+        total=total,
+        message="Saving filled Excel…",
+        filled_refs=filled_refs,
+    )
 
     out_name = payload.get("original_filename") or "descripcions.xlsx"
     if isinstance(out_name, str) and out_name.lower().endswith(".xlsx"):
@@ -278,7 +375,17 @@ async def _fill_ecom_excel(session: Any, job: Job, settings: Any) -> None:
     payload["output_storage_key"] = out_key
     payload["filled_count"] = filled
     payload["skipped_count"] = max(0, int(payload.get("pending_count") or 0) - filled)
+    payload["progress"] = {
+        "stage": "done",
+        "current": total,
+        "total": total,
+        "current_ref": None,
+        "message": f"Filled {filled} products",
+        "filled_refs": filled_refs,
+        "failed_ref": None,
+    }
     job.payload = payload
+    flag_modified(job, "payload")
 
 
 async def _copy(session: Any, job: Job) -> None:

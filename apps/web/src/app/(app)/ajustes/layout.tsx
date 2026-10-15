@@ -8,7 +8,6 @@ import type { MessageKey } from "@/lib/i18n";
 const LINKS: { href: string; labelKey: MessageKey }[] = [
   { href: "/ajustes/marca", labelKey: "settings.brand" },
   { href: "/ajustes/usuarios", labelKey: "settings.users" },
-  { href: "/ajustes/descripciones-ecom", labelKey: "settings.ecomExcel" },
   { href: "/ajustes/notificaciones", labelKey: "settings.notifications" },
   { href: "/ajustes/actividad", labelKey: "nav.activity" },
   { href: "/ajustes/trabajos", labelKey: "nav.failedJobs" },
