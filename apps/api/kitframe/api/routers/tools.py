@@ -114,11 +114,13 @@ async def fill_ecom_descriptions(
     settings: SettingsDep,
     file: UploadFile = File(...),
     images: Annotated[list[UploadFile], File()] = [],
+    image_refs: Annotated[list[str], Form()] = [],
     notes_json: str = Form(default="{}"),
 ) -> dict[str, Any]:
     """Upload Excel + product photos + notes; enqueue vision LLM fill for green rows.
 
-    Photos must be named with the product reference (e.g. BLMP813081.jpg).
+    Prefer pairing each image with image_refs[i] (UI assigns photos per product).
+    Filename matching (BLMP813081.jpg) is a fallback when image_refs is omitted.
     notes_json: {"REF": {"fit":"...","care":"...","measures":"...","extra":"..."}}
     """
     if not _can_fill_ecom(ctx):
@@ -157,11 +159,19 @@ async def fill_ecom_descriptions(
         raise AppError(ErrorCode.VALIDATION_ERROR, str(exc), status_code=422) from exc
 
     refs = [r.ref for r in pending]
-    image_files = [img for img in images if img is not None and (img.filename or "").strip()]
+    ref_set = set(refs)
+    image_files = [img for img in images if img is not None]
+    assigned_refs = [str(r).strip() for r in image_refs if str(r).strip()]
     if len(image_files) > MAX_IMAGES_TOTAL:
         raise AppError(
             ErrorCode.VALIDATION_ERROR,
             f"Too many images (max {MAX_IMAGES_TOTAL})",
+            status_code=422,
+        )
+    if assigned_refs and len(assigned_refs) != len(image_files):
+        raise AppError(
+            ErrorCode.VALIDATION_ERROR,
+            "image_refs length must match images length",
             status_code=422,
         )
 
@@ -169,15 +179,30 @@ async def fill_ecom_descriptions(
     images_by_ref: dict[str, list[dict[str, str]]] = {r: [] for r in refs}
     unmatched: list[str] = []
 
-    for img in image_files:
-        fname = (img.filename or "").strip()
-        if not fname or not is_product_image_filename(fname):
+    for idx, img in enumerate(image_files):
+        fname = (img.filename or f"image_{idx}.jpg").strip()
+        if not is_product_image_filename(fname) and not (img.content_type or "").startswith("image/"):
             unmatched.append(fname or "(unnamed)")
             continue
-        ref = match_filename_to_ref(fname, refs)
-        if ref is None:
-            unmatched.append(fname)
-            continue
+        if assigned_refs:
+            ref = assigned_refs[idx]
+            if ref not in ref_set:
+                # case-insensitive fallback
+                ref_match = next((r for r in refs if r.upper() == ref.upper()), None)
+                if ref_match is None:
+                    unmatched.append(fname)
+                    continue
+                ref = ref_match
+        else:
+            if not is_product_image_filename(fname):
+                unmatched.append(fname)
+                continue
+            matched = match_filename_to_ref(fname, refs)
+            if matched is None:
+                unmatched.append(fname)
+                continue
+            ref = matched
+
         raw = await img.read()
         if not raw:
             continue
@@ -190,7 +215,9 @@ async def fill_ecom_descriptions(
         if len(images_by_ref[ref]) >= 8:
             continue
         content_type = _guess_image_content_type(fname, img.content_type)
-        key = f"brands/{ctx.brand_id}/ecom_excel/in/{batch_id}/images/{ref}/{uuid4().hex}_{fname}"
+        # Sanitize filename for storage key (screenshots often have spaces)
+        safe_name = "".join(c if c.isalnum() or c in "._-" else "_" for c in fname)[:120]
+        key = f"brands/{ctx.brand_id}/ecom_excel/in/{batch_id}/images/{ref}/{uuid4().hex}_{safe_name}"
         try:
             put_bytes(settings, key, raw, content_type)
         except Exception as exc:
@@ -206,12 +233,12 @@ async def fill_ecom_descriptions(
     if missing_images:
         raise AppError(
             ErrorCode.VALIDATION_ERROR,
-            "Each product to fill needs at least one photo named with its reference",
+            "Each product to fill needs at least one photo",
             status_code=422,
             details={
                 "missing_images": missing_images,
                 "unmatched_images": unmatched,
-                "hint": "e.g. BLMP813081.jpg or BLMP813081_front.png",
+                "hint": "Attach photos on each product card (filenames like screenshots are fine)",
             },
         )
 

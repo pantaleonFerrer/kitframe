@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { api } from "@/lib/api";
 import { useI18n } from "@/hooks/use-i18n";
 
@@ -35,7 +42,6 @@ type Preview = {
   filename: string;
   pending_count: number;
   pending: PendingRow[];
-  image_naming_hint: string;
 };
 
 type ProductNotes = {
@@ -72,7 +78,6 @@ type FillJob = {
   original_filename?: string;
   download_url?: string | null;
   progress?: JobProgress;
-  pending_refs?: string[];
 };
 
 type RecentJob = {
@@ -86,6 +91,11 @@ type RecentJob = {
   progress?: JobProgress;
 };
 
+type ThumbFile = {
+  file: File;
+  url: string;
+};
+
 const emptyNotes = (): ProductNotes => ({
   fit: "",
   care: "",
@@ -93,25 +103,21 @@ const emptyNotes = (): ProductNotes => ({
   extra: "",
 });
 
-function matchRef(filename: string, refs: string[]): string | null {
-  const stem = filename.replace(/\.[^.]+$/, "");
-  const ordered = [...refs].sort((a, b) => b.length - a.length);
-  for (const ref of ordered) {
-    const re = new RegExp(`^${ref.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:$|[_\-\s.].*)`, "i");
-    if (re.test(stem)) return ref;
+function revokeAll(map: Record<string, ThumbFile[]>) {
+  for (const list of Object.values(map)) {
+    for (const item of list) URL.revokeObjectURL(item.url);
   }
-  return null;
 }
 
 export default function DescripcionesEcomPage() {
   const { t } = useI18n();
   const excelRef = useRef<HTMLInputElement>(null);
-  const imagesRef = useRef<HTMLInputElement>(null);
+  const perRefInput = useRef<Record<string, HTMLInputElement | null>>({});
 
   const [excel, setExcel] = useState<File | null>(null);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [previewing, setPreviewing] = useState(false);
-  const [images, setImages] = useState<File[]>([]);
+  const [imagesByRef, setImagesByRef] = useState<Record<string, ThumbFile[]>>({});
   const [notes, setNotes] = useState<Record<string, ProductNotes>>({});
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -120,22 +126,8 @@ export default function DescripcionesEcomPage() {
 
   const refs = useMemo(() => preview?.pending.map((p) => p.ref) || [], [preview]);
 
-  const imagesByRef = useMemo(() => {
-    const map: Record<string, File[]> = Object.fromEntries(refs.map((r) => [r, [] as File[]]));
-    const unmatched: File[] = [];
-    for (const f of images) {
-      const ref = matchRef(f.name, refs);
-      if (!ref) {
-        unmatched.push(f);
-        continue;
-      }
-      if (map[ref].length < 8) map[ref].push(f);
-    }
-    return { map, unmatched };
-  }, [images, refs]);
-
   const missingImageRefs = useMemo(
-    () => refs.filter((r) => (imagesByRef.map[r] || []).length === 0),
+    () => refs.filter((r) => (imagesByRef[r] || []).length === 0),
     [refs, imagesByRef],
   );
 
@@ -152,10 +144,16 @@ export default function DescripcionesEcomPage() {
     void loadRecent();
   }, [loadRecent]);
 
+  useEffect(() => {
+    return () => revokeAll(imagesByRef);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- cleanup only on unmount
+  }, []);
+
   async function onExcelChosen(file: File | null) {
     setExcel(file);
     setPreview(null);
-    setImages([]);
+    revokeAll(imagesByRef);
+    setImagesByRef({});
     setNotes({});
     setJob(null);
     setMsg(null);
@@ -169,9 +167,14 @@ export default function DescripcionesEcomPage() {
         body,
       });
       setPreview(res);
-      const next: Record<string, ProductNotes> = {};
-      for (const row of res.pending) next[row.ref] = emptyNotes();
-      setNotes(next);
+      const nextNotes: Record<string, ProductNotes> = {};
+      const nextImgs: Record<string, ThumbFile[]> = {};
+      for (const row of res.pending) {
+        nextNotes[row.ref] = emptyNotes();
+        nextImgs[row.ref] = [];
+      }
+      setNotes(nextNotes);
+      setImagesByRef(nextImgs);
       if (res.pending_count === 0) {
         setMsg(t("settings.ecomExcelNoPending"));
       } else {
@@ -184,20 +187,32 @@ export default function DescripcionesEcomPage() {
     }
   }
 
-  function addImages(files: FileList | File[] | null) {
+  function addImagesToRef(ref: string, files: FileList | File[] | null) {
     if (!files) return;
-    const list = Array.from(files).filter((f) => f.type.startsWith("image/"));
-    setImages((prev) => {
-      const names = new Set(prev.map((p) => `${p.name}:${p.size}`));
-      const next = [...prev];
+    const list = Array.from(files).filter(
+      (f) => f.type.startsWith("image/") || /\.(jpe?g|png|webp|gif)$/i.test(f.name),
+    );
+    if (!list.length) return;
+    setImagesByRef((prev) => {
+      const current = prev[ref] || [];
+      const next = [...current];
+      const seen = new Set(next.map((p) => `${p.file.name}:${p.file.size}`));
       for (const f of list) {
         const key = `${f.name}:${f.size}`;
-        if (!names.has(key)) {
-          next.push(f);
-          names.add(key);
-        }
+        if (seen.has(key) || next.length >= 8) continue;
+        next.push({ file: f, url: URL.createObjectURL(f) });
+        seen.add(key);
       }
-      return next.slice(0, 40);
+      return { ...prev, [ref]: next };
+    });
+  }
+
+  function removeImage(ref: string, index: number) {
+    setImagesByRef((prev) => {
+      const current = [...(prev[ref] || [])];
+      const [removed] = current.splice(index, 1);
+      if (removed) URL.revokeObjectURL(removed.url);
+      return { ...prev, [ref]: current };
     });
   }
 
@@ -214,9 +229,7 @@ export default function DescripcionesEcomPage() {
       return;
     }
     if (missingImageRefs.length > 0) {
-      setMsg(
-        `${t("settings.ecomExcelMissingPhotos")}: ${missingImageRefs.join(", ")}`,
-      );
+      setMsg(`${t("settings.ecomExcelMissingPhotos")}: ${missingImageRefs.join(", ")}`);
       return;
     }
     setBusy(true);
@@ -225,8 +238,11 @@ export default function DescripcionesEcomPage() {
     try {
       const body = new FormData();
       body.append("file", excel);
-      for (const img of images) {
-        body.append("images", img);
+      for (const ref of refs) {
+        for (const item of imagesByRef[ref] || []) {
+          body.append("images", item.file);
+          body.append("image_refs", ref);
+        }
       }
       const notesPayload: Record<string, Partial<ProductNotes>> = {};
       for (const ref of refs) {
@@ -243,12 +259,7 @@ export default function DescripcionesEcomPage() {
         method: "POST",
         body,
       });
-      setMsg(
-        `${t("settings.ecomExcelPending")}: ${started.pending_count}` +
-          (started.unmatched_images?.length
-            ? ` · ${t("settings.ecomExcelUnmatched")}: ${started.unmatched_images.join(", ")}`
-            : ""),
-      );
+      setMsg(`${t("settings.ecomExcelPending")}: ${started.pending_count}`);
 
       let last: FillJob | null = null;
       for (let i = 0; i < 600; i++) {
@@ -256,11 +267,8 @@ export default function DescripcionesEcomPage() {
         last = await api<FillJob>(`/tools/ecom-descriptions/jobs/${started.job_id}`);
         setJob(last);
         const p = last.progress;
-        if (p?.message) {
-          setMsg(p.message);
-        } else if (last.status === "running") {
-          setMsg(t("settings.ecomExcelRunning"));
-        }
+        if (p?.message) setMsg(p.message);
+        else if (last.status === "running") setMsg(t("settings.ecomExcelRunning"));
         if (last.status === "completed") {
           setMsg(t("settings.ecomExcelDone"));
           break;
@@ -347,50 +355,15 @@ export default function DescripcionesEcomPage() {
           title={t("settings.ecomExcelStepPhotos")}
           description={t("settings.ecomExcelPhotosHint")}
         >
-          <input
-            ref={imagesRef}
-            type="file"
-            accept="image/jpeg,image/png,image/webp,image/gif"
-            multiple
-            className="hidden"
-            onChange={(e) => {
-              addImages(e.target.files);
-              e.target.value = "";
-            }}
-          />
-          <div
-            className="rounded-md border border-dashed border-border px-4 py-8 text-center text-sm text-muted cursor-pointer hover:bg-raised"
-            onClick={() => imagesRef.current?.click()}
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={(e) => {
-              e.preventDefault();
-              addImages(e.dataTransfer.files);
-            }}
-          >
-            <p>{t("settings.ecomExcelDropPhotos")}</p>
-            <p className="mt-1 text-xs">{t("settings.ecomExcelPhotosNaming")}</p>
-          </div>
-          {images.length > 0 && (
-            <p className="text-sm text-muted">
-              {images.length} {t("settings.ecomExcelPhotosSelected")}
-              {imagesByRef.unmatched.length > 0 && (
-                <span className="text-wine">
-                  {" · "}
-                  {t("settings.ecomExcelUnmatched")}:{" "}
-                  {imagesByRef.unmatched.map((f) => f.name).join(", ")}
-                </span>
-              )}
-            </p>
-          )}
           {missingImageRefs.length > 0 && (
             <p className="text-sm text-wine">
               {t("settings.ecomExcelMissingPhotos")}: {missingImageRefs.join(", ")}
             </p>
           )}
 
-          <div className="space-y-4 pt-2">
+          <div className="space-y-4">
             {preview.pending.map((row) => {
-              const imgs = imagesByRef.map[row.ref] || [];
+              const imgs = imagesByRef[row.ref] || [];
               const n = notes[row.ref] || emptyNotes();
               return (
                 <div
@@ -413,18 +386,60 @@ export default function DescripcionesEcomPage() {
                         : t("settings.ecomExcelNeedsPhoto")}
                     </span>
                   </div>
+
+                  <input
+                    ref={(el) => {
+                      perRefInput.current[row.ref] = el;
+                    }}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => {
+                      addImagesToRef(row.ref, e.target.files);
+                      e.target.value = "";
+                    }}
+                  />
+
+                  <div
+                    className="rounded-md border border-dashed border-border px-3 py-4 text-center text-sm text-muted cursor-pointer hover:bg-raised"
+                    onClick={() => perRefInput.current[row.ref]?.click()}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      addImagesToRef(row.ref, e.dataTransfer.files);
+                    }}
+                  >
+                    <p>{t("settings.ecomExcelDropPhotos")}</p>
+                    <p className="mt-1 text-xs">{t("settings.ecomExcelPhotosNaming")}</p>
+                  </div>
+
                   {imgs.length > 0 && (
-                    <ul className="flex flex-wrap gap-2 text-xs text-muted">
-                      {imgs.map((f) => (
+                    <ul className="flex flex-wrap gap-2">
+                      {imgs.map((item, idx) => (
                         <li
-                          key={`${f.name}-${f.size}`}
-                          className="rounded border border-border px-2 py-1"
+                          key={`${item.file.name}-${item.file.size}-${idx}`}
+                          className="relative w-24 h-24 rounded border border-border overflow-hidden bg-raised group"
                         >
-                          {f.name}
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={item.url}
+                            alt={item.file.name}
+                            className="w-full h-full object-cover"
+                          />
+                          <button
+                            type="button"
+                            className="absolute top-1 right-1 rounded bg-carbon/80 text-white text-[10px] px-1.5 py-0.5 opacity-0 group-hover:opacity-100"
+                            onClick={() => removeImage(row.ref, idx)}
+                            disabled={busy}
+                          >
+                            ×
+                          </button>
                         </li>
                       ))}
                     </ul>
                   )}
+
                   <p className="text-xs text-muted">{t("settings.ecomExcelNotesHint")}</p>
                   <div className="grid gap-2 sm:grid-cols-2">
                     <label className="text-xs space-y-1">
