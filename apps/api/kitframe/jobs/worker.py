@@ -126,7 +126,7 @@ async def _extract(session: Any, job: Job) -> None:
     llm_cfg = (brand.provider_config or {}).get("llm") or {}
     llm = get_llm_client(settings, llm_cfg)
     schema = taxonomy_extraction_schema(brand.taxonomy_schema or {"fields": []})
-    result = llm.complete_json(
+    result = await llm.complete_json_async(
         "Extract product data from the document. Return JSON matching the schema.",
         f"Document id {doc.id}. Extract all products.",
         schema,
@@ -253,7 +253,7 @@ async def _fill_ecom_excel(session: Any, job: Job, settings: Any) -> None:
                 "fit_es_existente": row.existing_fit_es or None,
             }
         )
-        result = llm.complete_json(
+        result = await llm.complete_json_async(
             system,
             user,
             ecom_row_schema(),
@@ -333,7 +333,7 @@ async def _copy(session: Any, job: Job) -> None:
         user = str(product.structured_data)
         temperature = 0.4
 
-    result = llm.complete_json(
+    result = await llm.complete_json_async(
         system,
         user,
         copy_schema(),
@@ -502,7 +502,7 @@ async def _alt_text(session: Any, job: Job) -> None:
     llm_cfg = (brand.provider_config or {}).get("llm") or {}
     llm = get_llm_client(settings, llm_cfg)
     name = ((product.content or {}).get("es") or {}).get("name") or product.internal_reference
-    result = llm.complete_json(
+    result = await llm.complete_json_async(
         "Write short accessible alt text for an e-commerce product image.",
         f"Product: {name}. Shot type: {asset.shot_type}. Data: {product.structured_data}",
         alt_text_schema(),

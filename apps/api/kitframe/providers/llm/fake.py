@@ -19,6 +19,32 @@ class FakeLLMClient:
         images: list[bytes] | None = None,
         temperature: float = 0.0,
     ) -> dict[str, Any]:
+        return self._complete(
+            system, user, json_schema, schema_name=schema_name, images=images, temperature=temperature
+        )
+
+    async def complete_json_async(
+        self,
+        system: str,
+        user: str,
+        json_schema: dict[str, Any],
+        schema_name: str = "response",
+        images: list[bytes] | None = None,
+        temperature: float = 0.0,
+    ) -> dict[str, Any]:
+        return self._complete(
+            system, user, json_schema, schema_name=schema_name, images=images, temperature=temperature
+        )
+
+    def _complete(
+        self,
+        system: str,
+        user: str,
+        json_schema: dict[str, Any],
+        schema_name: str = "response",
+        images: list[bytes] | None = None,
+        temperature: float = 0.0,
+    ) -> dict[str, Any]:
         schema_str = str(json_schema)
         props = json_schema.get("properties") or {}
         if schema_name == "ecom_excel_row" or set(props.keys()) == {

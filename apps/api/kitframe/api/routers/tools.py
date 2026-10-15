@@ -63,12 +63,21 @@ async def fill_ecom_descriptions(
         )
 
     input_key = f"brands/{ctx.brand_id}/ecom_excel/in/{uuid4()}/{name}"
-    put_bytes(
-        settings,
-        input_key,
-        data,
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    )
+    try:
+        put_bytes(
+            settings,
+            input_key,
+            data,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+    except Exception as exc:
+        raise AppError(
+            ErrorCode.PROVIDER_ERROR,
+            "Object storage unavailable. Check S3_ENDPOINT / credentials "
+            "(localhost:9000 only works with local MinIO, not in Docker prod).",
+            status_code=503,
+            details={"reason": str(exc)[:300]},
+        ) from exc
 
     job = await enqueue_job(
         session,
