@@ -24,6 +24,27 @@ def _client(settings: Settings) -> Any:
     return boto3.client("s3", **kwargs)
 
 
+def key_prefix(settings: Settings) -> str:
+    return (settings.s3_key_prefix or "kitframe").strip().strip("/")
+
+
+def resolve_storage_key(settings: Settings, storage_key: str) -> str:
+    """Ensure every object key lives under the configured prefix (default kitframe/)."""
+    prefix = key_prefix(settings)
+    key = (storage_key or "").lstrip("/")
+    if not key:
+        raise ValueError("storage_key is empty")
+    if key == prefix or key.startswith(f"{prefix}/"):
+        return key
+    return f"{prefix}/{key}"
+
+
+def build_storage_key(settings: Settings, *parts: str) -> str:
+    """Build a new key: kitframe/<parts...>"""
+    rest = "/".join(p.strip("/") for p in parts if p and str(p).strip("/"))
+    return resolve_storage_key(settings, rest)
+
+
 def storage_reachable(settings: Settings) -> bool:
     try:
         client = _client(settings)
@@ -42,7 +63,7 @@ def presign_put(
     content_type: str,
     max_size: int,
 ) -> dict[str, str]:
-    key = f"brands/{brand_id}/{kind}/{uuid4()}/{file_name}"
+    key = build_storage_key(settings, "brands", brand_id, kind, str(uuid4()), file_name)
     client = _client(settings)
     url = client.generate_presigned_url(
         "put_object",
@@ -60,7 +81,7 @@ def presign_get(settings: Settings, storage_key: str, expires: int = 900) -> str
     client = _client(settings)
     return client.generate_presigned_url(
         "get_object",
-        Params={"Bucket": settings.s3_bucket, "Key": storage_key},
+        Params={"Bucket": settings.s3_bucket, "Key": resolve_storage_key(settings, storage_key)},
         ExpiresIn=expires,
     )
 
@@ -69,7 +90,7 @@ def put_bytes(settings: Settings, storage_key: str, content: bytes, content_type
     client = _client(settings)
     client.put_object(
         Bucket=settings.s3_bucket,
-        Key=storage_key,
+        Key=resolve_storage_key(settings, storage_key),
         Body=content,
         ContentType=content_type,
     )
@@ -77,7 +98,10 @@ def put_bytes(settings: Settings, storage_key: str, content: bytes, content_type
 
 def get_bytes(settings: Settings, storage_key: str) -> bytes:
     client = _client(settings)
-    obj = client.get_object(Bucket=settings.s3_bucket, Key=storage_key)
+    obj = client.get_object(
+        Bucket=settings.s3_bucket,
+        Key=resolve_storage_key(settings, storage_key),
+    )
     return obj["Body"].read()
 
 

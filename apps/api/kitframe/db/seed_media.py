@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 from pathlib import Path
 
-from kitframe.media.storage import ensure_bucket, put_bytes
+from kitframe.media.storage import ensure_bucket, key_prefix, put_bytes
 from kitframe.settings import Settings, get_settings
 
 FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
@@ -74,7 +74,10 @@ def upload_seed_media(settings: Settings | None = None) -> int:
         raise FileNotFoundError(
             f"Missing seed fixtures ({len(missing)}): {', '.join(missing[:8])}"
         )
-    print(f"Seed media uploaded: {uploaded} objects → s3://{settings.s3_bucket}/seed/…")
+    print(
+        f"Seed media uploaded: {uploaded} objects → "
+        f"s3://{settings.s3_bucket}/{key_prefix(settings)}/seed/…"
+    )
     return uploaded
 
 

@@ -70,6 +70,8 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("S3_SECRET_ACCESS_KEY", "AWS_SECRET_ACCESS_KEY"),
     )
     s3_use_path_style: bool = True
+    # All object keys are stored under this prefix (shared-bucket isolation).
+    s3_key_prefix: str = Field(default="kitframe", validation_alias=AliasChoices("S3_KEY_PREFIX"))
     jwt_secret: str = Field(min_length=32, default="local-dev-jwt-secret-change-me-now!!")
     app_encryption_key: str = Field(
         default="AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
