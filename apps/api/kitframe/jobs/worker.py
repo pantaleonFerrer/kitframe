@@ -56,6 +56,8 @@ async def process_job(job_id: UUID) -> None:
                 await _extract(session, job)
             elif job.type == "generate_copy":
                 await _copy(session, job)
+            elif job.type == "fill_ecom_excel":
+                await _fill_ecom_excel(session, job, settings)
             elif job.type == "generate_images":
                 await _generate(session, job, settings)
             elif job.type == "run_qc":
@@ -208,7 +210,79 @@ async def _extract(session: Any, job: Job) -> None:
     doc.sha256 = "extracted"
 
 
+async def _fill_ecom_excel(session: Any, job: Job, settings: Any) -> None:
+    from uuid import uuid4
+
+    from kitframe.content.ecom_excel import (
+        apply_row_fill,
+        build_system_prompt,
+        ecom_row_schema,
+        list_rows_to_fill,
+        load_workbook_bytes,
+        workbook_to_bytes,
+    )
+    from kitframe.media.storage import get_bytes, put_bytes
+    from kitframe.providers.registry import get_llm_client
+
+    brand = await session.get(Brand, job.brand_id) if job.brand_id else None
+    assert brand is not None
+    payload = dict(job.payload or {})
+    input_key = payload.get("input_storage_key")
+    if not input_key:
+        raise RuntimeError("fill_ecom_excel missing input_storage_key")
+
+    data = get_bytes(settings, str(input_key))
+    wb = load_workbook_bytes(data)
+    rows = list_rows_to_fill(wb)
+    llm_cfg = (brand.provider_config or {}).get("llm") or {}
+    llm = get_llm_client(settings, llm_cfg)
+    glossary = brand.glossary or {}
+    system = build_system_prompt(
+        tone=str(glossary.get("tone") or ""),
+        do_not_translate=list(glossary.get("do_not_translate") or []),
+    )
+
+    filled = 0
+    for row in rows:
+        user = str(
+            {
+                "referencia": row.ref,
+                "titulo_tecnico": row.title,
+                "coleccion": row.collection,
+                "tipo_producto": row.product_type,
+                "fit_es_existente": row.existing_fit_es or None,
+            }
+        )
+        result = llm.complete_json(
+            system,
+            user,
+            ecom_row_schema(),
+            schema_name="ecom_excel_row",
+            temperature=0.35,
+        )
+        apply_row_fill(wb, row.row, result)
+        filled += 1
+
+    out_name = payload.get("original_filename") or "descripcions.xlsx"
+    if isinstance(out_name, str) and out_name.lower().endswith(".xlsx"):
+        out_name = out_name[:-5] + "_filled.xlsx"
+    else:
+        out_name = "descripcions_filled.xlsx"
+    out_key = f"brands/{brand.id}/ecom_excel/out/{uuid4()}/{out_name}"
+    put_bytes(
+        settings,
+        out_key,
+        workbook_to_bytes(wb),
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    payload["output_storage_key"] = out_key
+    payload["filled_count"] = filled
+    payload["skipped_count"] = max(0, int(payload.get("pending_count") or 0) - filled)
+    job.payload = payload
+
+
 async def _copy(session: Any, job: Job) -> None:
+
     from kitframe.content.locales import CONTENT_LOCALES, LOCALE_LABELS
 
     product = await session.get(Product, job.entity_id)

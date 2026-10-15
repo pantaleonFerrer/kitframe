@@ -21,6 +21,87 @@ class FakeLLMClient:
     ) -> dict[str, Any]:
         schema_str = str(json_schema)
         props = json_schema.get("properties") or {}
+        if schema_name == "ecom_excel_row" or set(props.keys()) == {
+            "ES",
+            "CA",
+            "EN",
+            "FR",
+            "DE",
+            "JP",
+            "KR",
+        }:
+            def _loc(title: str, desc: str, meta: str) -> dict[str, str]:
+                return {
+                    "title": title,
+                    "description": desc,
+                    "fit": "Regular fit: elige tu talla habitual.",
+                    "measures": "",
+                    "care": "Tejido de algodón. Seguir la etiqueta de cuidados.",
+                    "meta_title": title[:70],
+                    "meta_description": meta[:160],
+                }
+
+            return {
+                "ES": _loc(
+                    "Camiseta FC Barcelona Tee Wall",
+                    "Camiseta oficial de la colección Tee Wall del FC Barcelona.",
+                    "Camiseta FC Barcelona Tee Wall de manga corta.",
+                ),
+                "CA": {
+                    **_loc(
+                        "Samarreta FC Barcelona Tee Wall",
+                        "Samarreta oficial de la col·lecció Tee Wall del FC Barcelona.",
+                        "Samarreta FC Barcelona Tee Wall de màniga curta.",
+                    ),
+                    "fit": "Regular fit: escull la teva talla habitual.",
+                    "care": "Teixit de cotó. Seguir l’etiqueta de cures.",
+                },
+                "EN": {
+                    **_loc(
+                        "FC Barcelona Tee Wall T-Shirt",
+                        "Official FC Barcelona Tee Wall collection t-shirt.",
+                        "FC Barcelona Tee Wall short-sleeve t-shirt.",
+                    ),
+                    "fit": "Regular fit: choose your usual size.",
+                    "care": "Cotton fabric. Follow the care label.",
+                },
+                "FR": {
+                    **_loc(
+                        "T-shirt FC Barcelona Tee Wall",
+                        "T-shirt officiel de la collection Tee Wall du FC Barcelona.",
+                        "T-shirt FC Barcelona Tee Wall à manches courtes.",
+                    ),
+                    "fit": "Coupe regular : choisis ta taille habituelle.",
+                    "care": "Tissu en coton. Suivre l’étiquette d’entretien.",
+                },
+                "DE": {
+                    **_loc(
+                        "FC Barcelona Tee Wall T-Shirt",
+                        "Offizielles T-Shirt der Tee Wall Kollektion von FC Barcelona.",
+                        "FC Barcelona Tee Wall Kurzarm-T-Shirt.",
+                    ),
+                    "fit": "Regular Fit: wähle deine übliche Größe.",
+                    "care": "Baumwollstoff. Pflegehinweise beachten.",
+                },
+                "JP": {
+                    **_loc(
+                        "FCバルセロナ Tee Wall Tシャツ",
+                        "FCバルセロナ Tee Wallコレクションの公式Tシャツ。",
+                        "FCバルセロナ Tee Wallの半袖Tシャツ。",
+                    ),
+                    "fit": "レギュラーフィット：いつものサイズを選んでください。",
+                    "care": "コットン素材。ケアラベルに従ってください。",
+                },
+                "KR": {
+                    **_loc(
+                        "FC 바르셀로나 Tee Wall 티셔츠",
+                        "FC 바르셀로나 Tee Wall 컬렉션 공식 티셔츠입니다.",
+                        "FC 바르셀로나 Tee Wall 반팔 티셔츠.",
+                    ),
+                    "fit": "레귤러 핏: 평소 사이즈를 선택하세요.",
+                    "care": "코튼 소재. 케어 라벨을 따르세요.",
+                },
+            }
         if schema_name == "alt_text" or (
             set(props.keys()) == {"es", "ca", "en"} and "products" not in schema_str and "name" not in schema_str
         ):

@@ -505,6 +505,20 @@ export type Messages = {
     immediate: string;
     hourlyDigest: string;
     dailyDigest: string;
+    ecomExcel: string;
+    ecomExcelTitle: string;
+    ecomExcelDesc: string;
+    ecomExcelHint: string;
+    ecomExcelChoose: string;
+    ecomExcelRun: string;
+    ecomExcelRunning: string;
+    ecomExcelDone: string;
+    ecomExcelDownload: string;
+    ecomExcelFailed: string;
+    ecomExcelPending: string;
+    ecomExcelFilled: string;
+    ecomExcelRecent: string;
+    ecomExcelNoFile: string;
   };
   multiUpload: {
     dropHere: string;

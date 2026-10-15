@@ -27,12 +27,15 @@ kitframe/api/routers/products.py
 kitframe/api/routers/projects.py
 kitframe/api/routers/rights.py
 kitframe/api/routers/search.py
+kitframe/api/routers/tools.py
 kitframe/api/routers/uploads.py
 kitframe/auth/__init__.py
 kitframe/auth/permissions.py
 kitframe/auth/tokens.py
 kitframe/content/__init__.py
+kitframe/content/ecom_excel.py
 kitframe/content/glossary.py
+kitframe/content/locales.py
 kitframe/db/__init__.py
 kitframe/db/models.py
 kitframe/db/seed.py

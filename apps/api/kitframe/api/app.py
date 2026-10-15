@@ -24,6 +24,7 @@ from kitframe.api.routers import (
     projects,
     rights,
     search,
+    tools,
     uploads,
 )
 from kitframe.db.session import engine
@@ -102,6 +103,7 @@ def create_app() -> FastAPI:
     app.include_router(jobs.router, prefix=api)
     app.include_router(search.router, prefix=api)
     app.include_router(uploads.router, prefix=api)
+    app.include_router(tools.router, prefix=api)
 
     @app.get("/metrics")
     async def metrics(request: Request) -> Response:
