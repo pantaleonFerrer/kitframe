@@ -260,22 +260,64 @@ def apply_row_fill(wb: Workbook, row: int, content: dict[str, Any]) -> None:
             _cell(ws, row, desc_col).value = meta_desc
 
 
+DESCRIPTION_STYLE_RULES = """
+PRODUCT DESCRIPTION RULES (apply to the "description" field in EVERY locale):
+
+SOURCE OF TRUTH
+- Base descriptions EXCLUSIVELY on what is visible in the product photographs.
+- Do NOT add information that cannot be confirmed from the images.
+- Operator notes (fit / measures / care) may only fill those dedicated fields, never invent visual details.
+
+STYLE AND LENGTH
+- Short but complete: typically 1 to 3 sentences.
+- Natural, clear, fluent prose; easy to understand and to translate.
+- Avoid overly technical, complex or ambiguous wording.
+
+CONTENT
+- Describe only visible product features.
+- Include relevant visible details: colours, graphics, prints, logos, apparent materials, finishes, visible functional elements.
+- Do NOT add opinions, value judgments or subjective claims about quality, comfort, style or performance
+  (forbidden examples: "cómodos", "perfectos", "ideal", "muy bonito", "must-have", "premium feel").
+
+TONE
+- Informative, objective and descriptive.
+- No promotional or commercial sales language.
+- Do not repeat information unnecessarily.
+
+FC BARCELONA TERMINOLOGY (mandatory)
+- Always use "FC Barcelona" for the club. NEVER use "Barça", "Barca", "FCB" as the club name in copy.
+- In Spanish (ES): club fans are "culés".
+- In all other locales (CA, EN, FR, DE, JP, KR): always use "culers" — do not translate or adapt that term.
+
+GOOD EXAMPLE (ES):
+"Calcetines infantiles FC Barcelona con diseño del escudo del club en la parte superior y motivos gráficos navideños en la zona del pie. Incorporan forro interior de aspecto afelpado visible en el borde superior y elementos antideslizantes en la planta."
+
+BAD EXAMPLE (ES) — do NOT write like this:
+"Calcetines infantiles FC Barcelona muy cómodos y perfectos para los pequeños aficionados. Su diseño navideño los convierte en una opción ideal para el invierno."
+""".strip()
+
+
 def build_system_prompt(*, tone: str, do_not_translate: list[str]) -> str:
+    # Brand glossary extras; still enforce FC Barcelona naming above "Barça".
+    protected = list(do_not_translate or [])
+    for term in ("FC Barcelona", "culés", "culers"):
+        if term not in protected:
+            protected.append(term)
+    # Explicitly ban Barça in ecom descriptions even if glossary listed it historically.
     return (
         "You write ecommerce product copy for FC Barcelona merchandising "
         "(official Club / co-branded / licensed products). "
-        f"Tone: {tone or 'clear, commercial, factual'}. "
-        f"Never alter or invent translations for these brand terms: "
-        f"{do_not_translate or ['FC Barcelona', 'Barça', 'Blaugrana']}. "
-        "CRITICAL: Product descriptions MUST be grounded in the attached product photos — "
-        "describe colour, graphics, silhouette, collar, print and visible construction you see. "
-        "Derive a natural commercial product name from the technical title (column C). "
-        "For fit / measures / care: when the operator provides notes, translate those facts "
-        "faithfully into every locale and do NOT invent numbers or care symbols. "
-        "If notes omit a field, leave measures empty and use cautious care wording "
+        f"Brand glossary tone hint (secondary to description rules): {tone or 'informative, objective'}. "
+        f"Protected terms (keep as-is when they appear): {protected}. "
+        f"\n\n{DESCRIPTION_STYLE_RULES}\n\n"
+        "OTHER FIELDS:\n"
+        "- title: derive a natural commercial product name from the technical title; keep it factual, not promotional.\n"
+        "- fit / measures / care: when the operator provides notes, translate those facts faithfully "
+        "into every locale and do NOT invent numbers or care symbols. "
+        "If notes omit a field, leave measures empty; for care use cautious wording "
         "(follow the care label) rather than inventing fabric percentages. "
-        "Accessories may use N/A for fit when appropriate. "
-        "meta_title <= 70 chars, meta_description <= 160 chars. "
+        "Accessories may use N/A for fit when appropriate.\n"
+        "- meta_title <= 70 chars, meta_description <= 160 chars; factual, no hype; still use FC Barcelona (never Barça).\n"
         "Return ALL locales: ES, CA, EN, FR, DE, JP, KR. "
         "Plain text only (no HTML)."
     )
@@ -302,8 +344,10 @@ def build_user_prompt(
             "extra": notes.get("extra") or None,
         },
         "instrucciones": (
-            "Write copy from the photos. Use notas_operador for fit/measures/care when present. "
-            "Translate notes into every locale."
+            "Write description ONLY from what you see in the photos (1–3 objective sentences). "
+            "No promotional language. Always 'FC Barcelona' (never 'Barça'). "
+            "ES fans = 'culés'; other locales = 'culers'. "
+            "Use notas_operador only for fit/measures/care fields when present; translate them to every locale."
         ),
     }
     return json.dumps(payload, ensure_ascii=False)

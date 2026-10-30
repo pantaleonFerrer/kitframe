@@ -70,14 +70,16 @@ class FakeLLMClient:
             return {
                 "ES": _loc(
                     "Camiseta FC Barcelona Tee Wall",
-                    "Camiseta oficial de la colección Tee Wall del FC Barcelona.",
-                    "Camiseta FC Barcelona Tee Wall de manga corta.",
+                    "Camiseta de manga corta FC Barcelona en tejido de aspecto algodonado, "
+                    "con gráfico frontal centrado y estampado de gran formato en la espalda.",
+                    "Camiseta manga corta FC Barcelona con gráfico frontal y estampado dorsal.",
                 ),
                 "CA": {
                     **_loc(
                         "Samarreta FC Barcelona Tee Wall",
-                        "Samarreta oficial de la col·lecció Tee Wall del FC Barcelona.",
-                        "Samarreta FC Barcelona Tee Wall de màniga curta.",
+                        "Samarreta de màniga curta FC Barcelona amb teixit d’aspecte de cotó, "
+                        "gràfic frontal centrat i estampat de gran format a l’esquena.",
+                        "Samarreta màniga curta FC Barcelona amb gràfic frontal i estampat dorsal.",
                     ),
                     "fit": "Regular fit: escull la teva talla habitual.",
                     "care": "Teixit de cotó. Seguir l’etiqueta de cures.",
@@ -85,8 +87,9 @@ class FakeLLMClient:
                 "EN": {
                     **_loc(
                         "FC Barcelona Tee Wall T-Shirt",
-                        "Official FC Barcelona Tee Wall collection t-shirt.",
-                        "FC Barcelona Tee Wall short-sleeve t-shirt.",
+                        "Short-sleeve FC Barcelona t-shirt in a cotton-look fabric, "
+                        "with a centred front graphic and a large-format print on the back.",
+                        "Short-sleeve FC Barcelona t-shirt with front graphic and back print.",
                     ),
                     "fit": "Regular fit: choose your usual size.",
                     "care": "Cotton fabric. Follow the care label.",
@@ -94,8 +97,9 @@ class FakeLLMClient:
                 "FR": {
                     **_loc(
                         "T-shirt FC Barcelona Tee Wall",
-                        "T-shirt officiel de la collection Tee Wall du FC Barcelona.",
-                        "T-shirt FC Barcelona Tee Wall à manches courtes.",
+                        "T-shirt à manches courtes FC Barcelona en tissu d’aspect coton, "
+                        "avec un graphisme frontal centré et un imprimé grand format au dos.",
+                        "T-shirt manches courtes FC Barcelona avec graphisme avant et imprimé dos.",
                     ),
                     "fit": "Coupe regular : choisis ta taille habituelle.",
                     "care": "Tissu en coton. Suivre l’étiquette d’entretien.",
@@ -103,8 +107,9 @@ class FakeLLMClient:
                 "DE": {
                     **_loc(
                         "FC Barcelona Tee Wall T-Shirt",
-                        "Offizielles T-Shirt der Tee Wall Kollektion von FC Barcelona.",
-                        "FC Barcelona Tee Wall Kurzarm-T-Shirt.",
+                        "Kurzarm-T-Shirt FC Barcelona aus stoff mit Baumwolloptik, "
+                        "mit zentriertem Frontmotiv und großflächigem Rückenprint.",
+                        "Kurzarm-T-Shirt FC Barcelona mit Frontmotiv und Rückenprint.",
                     ),
                     "fit": "Regular Fit: wähle deine übliche Größe.",
                     "care": "Baumwollstoff. Pflegehinweise beachten.",

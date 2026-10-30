@@ -7,6 +7,7 @@ from openpyxl.styles import PatternFill
 
 from kitframe.content.ecom_excel import (
     apply_row_fill,
+    build_system_prompt,
     build_user_prompt,
     group_images_by_ref,
     list_rows_to_fill,
@@ -110,3 +111,16 @@ def test_build_user_prompt_includes_notes() -> None:
     assert "SKU-GREEN" in user
     assert "Slim" in user
     assert '"fotos_adjuntas": 2' in user
+    assert "never 'Barça'" in user or "never \\\"Barça\\\"" in user or "FC Barcelona" in user
+
+
+def test_system_prompt_enforces_fcb_description_rules() -> None:
+    prompt = build_system_prompt(tone="", do_not_translate=["Blaugrana", "Barça"])
+    assert "1 to 3 sentences" in prompt
+    assert "NEVER use \"Barça\"" in prompt
+    assert "culés" in prompt
+    assert "culers" in prompt
+    assert "promotional" in prompt.lower()
+    assert "photographs" in prompt.lower()
+    assert "Calcetines infantiles FC Barcelona" in prompt
+    assert "muy cómodos y perfectos" in prompt  # bad example present as anti-pattern
